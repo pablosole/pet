@@ -1,10 +1,4 @@
-// Platform specific code for Win32 on PIN.
-
-#ifdef TARGET_WINDOWS
-
 #include "pin.H"
-#undef ASSERT
-#undef LOG
 
 namespace WINDOWS {
 #include <windows.h>
@@ -13,7 +7,7 @@ namespace WINDOWS {
 typedef WINDOWS::HANDLE (WINAPI *MyCreateThread_type)(
         WINDOWS::LPSECURITY_ATTRIBUTES lpThreadAttributes,
         WINDOWS::SIZE_T dwStackSize,
-		ROOT_THREAD_FUNC lpStartAddress,
+		WINDOWS::LPTHREAD_START_ROUTINE lpStartAddress,
 		WINDOWS::LPVOID lpParameter,
         WINDOWS::DWORD dwCreationFlags,
         WINDOWS::LPDWORD lpThreadId
@@ -23,13 +17,15 @@ extern "C" {
 _declspec(dllexport) WINDOWS::HANDLE WINAPI CreateThread(
         WINDOWS::LPSECURITY_ATTRIBUTES lpThreadAttributes,
         WINDOWS::SIZE_T dwStackSize,
-		ROOT_THREAD_FUNC lpStartAddress,
+		WINDOWS::LPTHREAD_START_ROUTINE lpStartAddress,
 		WINDOWS::LPVOID lpParameter,
         WINDOWS::DWORD dwCreationFlags,
         WINDOWS::LPDWORD lpThreadId
   ) {
 	  MyCreateThread_type MyCreateThread;
-	  WINDOWS::HMODULE v8 = WINDOWS::GetModuleHandle("v8.dll");
+
+	  //XXX: maintain updated with the name of the pintool DLL
+	  WINDOWS::HMODULE v8 = WINDOWS::GetModuleHandle("pet.dll");
 	  if (!v8)
 		  return 0;
 
@@ -40,5 +36,3 @@ _declspec(dllexport) WINDOWS::HANDLE WINAPI CreateThread(
 	  return MyCreateThread(lpThreadAttributes, dwStackSize, lpStartAddress, lpParameter, dwCreationFlags, lpThreadId);
 }
 }
-
-#endif
