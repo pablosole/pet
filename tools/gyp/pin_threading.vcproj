@@ -18,7 +18,7 @@
 		<Configuration
 			Name="Debug|Win32"
 			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)\obj\$(ProjectName)"
 			ConfigurationType="1"
 			CharacterSet="2"
 			>
@@ -85,7 +85,7 @@
 		<Configuration
 			Name="Release|Win32"
 			OutputDirectory="../..\build\$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			IntermediateDirectory="$(OutDir)\obj\$(ProjectName)"
 			ConfigurationType="2"
 			CharacterSet="1"
 			WholeProgramOptimization="1"
@@ -111,13 +111,14 @@
 				Optimization="0"
 				EnableIntrinsicFunctions="false"
 				WholeProgramOptimization="false"
-				AdditionalIncludeDirectories="C:\pet\v8\include"
+				AdditionalIncludeDirectories="..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\source\include;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\source\include\gen;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\source\tools\InstLib;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\extras\xed2-ia32\include;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\extras\components\include"
 				PreprocessorDefinitions="TARGET_WINDOWS;BIGARRAY_MULTIPLIER=1;USING_XED;HOST_IA32;TARGET_IA32;_CRT_SECURE_NO_DEPRECATE;_SECURE_SCL=0;WIN32;$(NOINHERIT)"
 				ExceptionHandling="0"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
+				ProgramDataBaseFileName="$(IntDir)\$(ProjectName)\vc80.pdb"
 				WarningLevel="3"
-				DebugInformationFormat="4"
+				DebugInformationFormat="3"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -132,12 +133,14 @@
 				Name="VCLinkerTool"
 				AdditionalDependencies="pin.lib libxed.lib libcpmt.lib libcmt.lib pinvm.lib kernel32.lib ntdll-32.lib $(NOINHERIT)"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="&quot;C:\pet\pin-2.11-49306-msvc9-ia32_intel64-windows\ia32\lib&quot;;&quot;C:\pet\pin-2.11-49306-msvc9-ia32_intel64-windows\ia32\lib-ext&quot;;&quot;C:\pet\pin-2.11-49306-msvc9-ia32_intel64-windows\extras\xed2-ia32\lib&quot;"
+				AdditionalLibraryDirectories="..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\ia32\lib;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\ia32\lib-ext;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\extras\xed2-ia32\lib"
 				GenerateManifest="false"
 				IgnoreAllDefaultLibraries="true"
 				GenerateDebugInformation="true"
 				OptimizeReferences="0"
 				EnableCOMDATFolding="0"
+				LinkTimeCodeGeneration="0"
+				ImportLibrary="$(OutDir)\lib\$(TargetName).lib"
 				TargetMachine="1"
 			/>
 			<Tool
