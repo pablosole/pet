@@ -1,0 +1,36 @@
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "(gyp)", "..\tools\gyp", "{0A173FA6-4921-C1C4-C97B-E89CE5CB7004}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "(tools)", "..\tools", "{0078455D-77D3-142E-F1F4-B78FB0A8B454}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "preparser", "preparser.vcproj", "{83467091-3F72-3225-60E4-649E84C79378}"
+	ProjectSection(ProjectDependencies) = postProject
+		{0552DB70-8D1E-0CF9-F0FD-0E75947BD2E6} = {0552DB70-8D1E-0CF9-F0FD-0E75947BD2E6}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "preparser_lib", "..\tools\gyp\preparser_lib.vcproj", "{0552DB70-8D1E-0CF9-F0FD-0E75947BD2E6}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0552DB70-8D1E-0CF9-F0FD-0E75947BD2E6}.Debug|Win32.ActiveCfg = Debug|Win32
+		{0552DB70-8D1E-0CF9-F0FD-0E75947BD2E6}.Debug|Win32.Build.0 = Debug|Win32
+		{0552DB70-8D1E-0CF9-F0FD-0E75947BD2E6}.Release|Win32.ActiveCfg = Release|Win32
+		{0552DB70-8D1E-0CF9-F0FD-0E75947BD2E6}.Release|Win32.Build.0 = Release|Win32
+		{83467091-3F72-3225-60E4-649E84C79378}.Debug|Win32.ActiveCfg = Debug|Win32
+		{83467091-3F72-3225-60E4-649E84C79378}.Debug|Win32.Build.0 = Debug|Win32
+		{83467091-3F72-3225-60E4-649E84C79378}.Release|Win32.ActiveCfg = Release|Win32
+		{83467091-3F72-3225-60E4-649E84C79378}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{0552DB70-8D1E-0CF9-F0FD-0E75947BD2E6} = {0A173FA6-4921-C1C4-C97B-E89CE5CB7004}
+		{0A173FA6-4921-C1C4-C97B-E89CE5CB7004} = {0078455D-77D3-142E-F1F4-B78FB0A8B454}
+	EndGlobalSection
+EndGlobal
