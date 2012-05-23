@@ -135,8 +135,7 @@
 				ExceptionHandling="0"
 				RuntimeLibrary="0"
 				BufferSecurityCheck="true"
-				EnableFunctionLevelLinking="true"
-				RuntimeTypeInfo="false"
+				EnableFunctionLevelLinking="false"
 				ProgramDataBaseFileName="$(IntDir)\$(ProjectName)\vc80.pdb"
 				WarningLevel="3"
 				WarnAsError="true"
@@ -213,6 +212,14 @@
 				<Filter
 					Name="src"
 					>
+					<File
+						RelativePath="..\..\src\contextmanager.cc"
+						>
+					</File>
+					<File
+						RelativePath="..\..\src\pintool.h"
+						>
+					</File>
 					<File
 						RelativePath="..\..\src\v8dll-main.cc"
 						>
