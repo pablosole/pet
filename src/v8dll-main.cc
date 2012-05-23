@@ -74,6 +74,9 @@ void Fini(INT32 code, void *v)
 {
 	DEBUG("Fini called");
 
+	kill_contexts = true;
+	PIN_SemaphoreSet(&contexts_changed);
+
 	OutFile.close();
 	DebugFile.close();
 }

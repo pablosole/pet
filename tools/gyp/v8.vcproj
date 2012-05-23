@@ -135,7 +135,7 @@
 				ExceptionHandling="0"
 				RuntimeLibrary="0"
 				BufferSecurityCheck="true"
-				EnableFunctionLevelLinking="false"
+				EnableFunctionLevelLinking="true"
 				ProgramDataBaseFileName="$(IntDir)\$(ProjectName)\vc80.pdb"
 				WarningLevel="3"
 				WarnAsError="true"

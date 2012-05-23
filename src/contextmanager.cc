@@ -15,11 +15,14 @@ void PinContextManager(void *notused)
 
 	PIN_SemaphoreSet(&context_manager_ready);
 
-	while (!kill_contexts)
+	while (true)
 	{
 		DEBUG("wait here until something happens");
 		PIN_SemaphoreWait(&contexts_changed);
 		PIN_SemaphoreClear(&contexts_changed);
+
+		if (kill_contexts)
+			break;
 
 		DEBUG("something to do in the context manager");
 		PIN_RWMutexWriteLock(&contexts_lock);
@@ -30,7 +33,6 @@ void PinContextManager(void *notused)
 			PIN_THREAD_UID tid = it->first;
 			PinContext *context = it->second;
 			
-			//Create a context for a new thread
 			switch (context->state)
 			{
 				case NEW_CONTEXT:
@@ -80,9 +82,13 @@ void PinContextManager(void *notused)
 	it = contexts.begin();
 	while (it != contexts.end())
 	{
+		PIN_THREAD_UID tid = it->first;
 		PinContext *context = it->second;
 		
-		DestroyPinContext(context);
+		DEBUG("destroying context for tid:" << tid);
+		if (context->state == INITIALIZED_CONTEXT) {
+			DestroyPinContext(context);
+		}
 		delete context;
 		contexts.erase(it++);
 	}
