@@ -4,11 +4,6 @@
 
 bool DestroyPinContext(PinContext *context);
 
-unsigned int __stdcall threadfunc(void *)
-{
-	return 0;
-}
-
 void PinContextManager(void *notused)
 {
 	ContextsMap::iterator it;
