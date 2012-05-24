@@ -7,8 +7,9 @@ ContextsMap contexts;
 PIN_RWMUTEX contexts_lock;
 PIN_SEMAPHORE contexts_changed;
 bool kill_contexts = false;
-PIN_THREAD_UID context_manager_tid;
+THREADID context_manager_tid;
 PIN_SEMAPHORE context_manager_ready;
+TLS_KEY per_thread_context_key;
 
 WINDOWS::HANDLE WINAPI MyCreateThread(
 			WINDOWS::LPSECURITY_ATTRIBUTES lpThreadAttributes,
@@ -19,20 +20,16 @@ WINDOWS::HANDLE WINAPI MyCreateThread(
 			WINDOWS::LPDWORD lpThreadId
 	  )
 {
-	  return reinterpret_cast<WINDOWS::HANDLE> (PIN_SpawnInternalThread((lpStartAddress),
+	THREADID ret = (PIN_SpawnInternalThread((lpStartAddress),
 					lpParameter,
 					dwStackSize,
 					reinterpret_cast<PIN_THREAD_UID *>(lpThreadId)));
+
+	return (ret == INVALID_THREADID) ? 0 : reinterpret_cast<WINDOWS::HANDLE>(ret);
 }
 
 VOID OnThreadStart(PinContext *context)
 {
-	if (!IsValidContext(context))
-	{
-		DEBUG("OnThreadStart executed over an invalid context");
-		return;
-	}
-
 	DEBUG("OnThreadStart for tid:" << context->tid);
 }
 
@@ -41,8 +38,9 @@ void ThreadStart(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *v)
 	if (!PIN_IsApplicationThread())
 		return;
 
-	DEBUG("ThreadStart called:" << PIN_ThreadUid());
-	EnsurePinContextCallback(PIN_ThreadUid(), OnThreadStart);
+	DEBUG("ThreadStart called:" << tid);
+	if (!EnsurePinContextCallback(tid, OnThreadStart))
+		DEBUG("Failed to create EnsurePinContext callback for tid " << tid);
 }
 
 void ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
@@ -50,24 +48,7 @@ void ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
 	if (!PIN_IsApplicationThread())
 		return;
 
-	DEBUG("ThreadFini called:" << PIN_ThreadUid());
-
-	//dont create a context if we weren't following this thread
-	PinContext *context = EnsurePinContext(PIN_ThreadUid(), false);
-
-	if (!IsValidContext(context))
-		return;
-
-	DEBUG("set context state to kill");
-	PIN_MutexLock(&context->lock);
-	context->state = KILLING_CONTEXT;
-	PIN_MutexUnlock(&context->lock);
-
-	PIN_SemaphoreSet(&contexts_changed);
-
-	//wait until the context is actually destroyed (just for debugging)
-	PIN_SemaphoreWait(&context->state_changed);
-	PIN_SemaphoreClear(&context->state_changed);
+	DEBUG("ThreadFini called:" << tid);
 }
 
 void Fini(INT32 code, void *v)
@@ -89,7 +70,7 @@ void AddGenericInstrumentation(void *)
 
 	//this is executed from the app's main thread
 	//before the first ThreadStart
-	DEBUG("Main TID:" << PIN_ThreadUid());
+	DEBUG("Main TID:" << PIN_ThreadId());
 }
 
 KNOB<string> KnobOutputFile(KNOB_MODE_WRITEONCE, "pintool", "o", "pet-output.log", "specify output file name");

@@ -3,6 +3,7 @@
 #include <process.h>
 
 bool DestroyPinContext(PinContext *context);
+void DeinitializePinContexts();
 
 void PinContextManager(void *notused)
 {
@@ -30,7 +31,7 @@ void PinContextManager(void *notused)
 		it = contexts.begin();
 		while (it != contexts.end())
 		{
-			PIN_THREAD_UID tid = it->first;
+			THREADID tid = it->first;
 			PinContext *context = it->second;
 			
 			switch (context->state)
@@ -82,17 +83,20 @@ void PinContextManager(void *notused)
 	it = contexts.begin();
 	while (it != contexts.end())
 	{
-		PIN_THREAD_UID tid = it->first;
+		THREADID tid = it->first;
 		PinContext *context = it->second;
 		
-		DEBUG("destroying context for tid:" << tid);
 		if (context->state == INITIALIZED_CONTEXT) {
+			DEBUG("destroying context for tid:" << tid);
 			DestroyPinContext(context);
 		}
+		DEBUG("deleting context for tid:" << tid);
 		delete context;
 		contexts.erase(it++);
 	}
 	PIN_RWMutexUnlock(&contexts_lock);
+
+	DeinitializePinContexts();
 }
 
 //Enter this function without the specific context's lock held
@@ -108,6 +112,25 @@ bool DestroyPinContext(PinContext *context)
 	return true;
 }
 
+VOID ThreadContextDestructor(VOID *v)
+{
+	PinContext *context = reinterpret_cast<PinContext *>(v);
+
+	if (!IsValidContext(context))
+		return;
+
+	DEBUG("set context state to kill");
+	PIN_MutexLock(&context->lock);
+	context->state = KILLING_CONTEXT;
+	PIN_MutexUnlock(&context->lock);
+
+	PIN_SemaphoreSet(&contexts_changed);
+
+	//wait until the context is actually destroyed (just for debugging)
+	PIN_SemaphoreWait(&context->state_changed);
+	PIN_SemaphoreClear(&context->state_changed);
+}
+
 bool InitializePinContexts()
 {
 	if (!PIN_RWMutexInit(&contexts_lock) || 
@@ -115,13 +138,25 @@ bool InitializePinContexts()
 		!PIN_SemaphoreInit(&context_manager_ready))
 		return false;
 
-	return PIN_SpawnInternalThread(PinContextManager, 0, 0, &context_manager_tid) != INVALID_THREADID;
+	per_thread_context_key = PIN_CreateThreadDataKey(ThreadContextDestructor);
+	if (per_thread_context_key == -1)
+		return false;
+
+	return (context_manager_tid = PIN_SpawnInternalThread(PinContextManager, 0, 0, NULL)) != INVALID_THREADID;
+}
+
+void DeinitializePinContexts()
+{
+	PIN_RWMutexFini(&contexts_lock);
+	PIN_SemaphoreFini(&contexts_changed);
+	PIN_SemaphoreFini(&context_manager_ready);
+	PIN_DeleteThreadDataKey(per_thread_context_key);
 }
 
 //this function returns a new context and adds it to the map of contexts or returns
 //INVALID_PIN_CONTEXT if cannot allocate a new context or
 //EXISTS_PIN_CONTEXT if there's a context for this tid in the map already.
-PinContext *CreatePinContext(PIN_THREAD_UID tid)
+PinContext *CreatePinContext(THREADID tid)
 {
 	PinContext *context;
 	pair<ContextsMap::iterator, bool> ret;
@@ -134,7 +169,7 @@ PinContext *CreatePinContext(PIN_THREAD_UID tid)
 		return INVALID_PIN_CONTEXT;
 
 	PIN_RWMutexWriteLock(&contexts_lock);
-	ret = contexts.insert(pair<PIN_THREAD_UID, PinContext *>(tid, context));
+	ret = contexts.insert(pair<THREADID, PinContext *>(tid, context));
 	PIN_RWMutexUnlock(&contexts_lock);
 
 	if (ret.second == false)
@@ -163,12 +198,18 @@ VOID EnsureContextCallbackHelper(VOID *v)
 	PIN_SemaphoreWait(&context_manager_ready);
 
 	PinContext *context = EnsurePinContext(info->tid, info->create);
+
+	if (!IsValidContext(context))
+	{
+		DEBUG("Couldn't ensure a valid context for callback on tid " << info->tid);
+		return;
+	}
 	info->callback(context);
 }
 
 //This function is used to queue a callback to run whenever the Context Manager is ready to work.
 //The function is executed from an internal thread and it receives a PinContext * as its only argument.
-bool EnsurePinContextCallback(PIN_THREAD_UID tid, bool create, ENSURE_CALLBACK_FUNC *callback)
+bool EnsurePinContextCallback(THREADID tid, bool create, ENSURE_CALLBACK_FUNC *callback)
 {
 	if (PIN_SemaphoreIsSet(&context_manager_ready))
 	{
@@ -185,42 +226,22 @@ bool EnsurePinContextCallback(PIN_THREAD_UID tid, bool create, ENSURE_CALLBACK_F
 	return PIN_SpawnInternalThread(EnsureContextCallbackHelper, info, 0, 0) != INVALID_THREADID;
 }
 
-PinContext *EnsurePinContext(PIN_THREAD_UID tid, bool create)
+PinContext *EnsurePinContext(THREADID tid, bool create)
 {
 	DEBUG("EnsurePinContext called");
 
 	if (!PIN_SemaphoreIsSet(&context_manager_ready))
 		return NO_MANAGER_CONTEXT;
 
-	ContextsMap::const_iterator it;
-	PinContext *context;
-	bool notfound;
+	PinContext *context = reinterpret_cast<PinContext *>(PIN_GetThreadData(per_thread_context_key, tid));
 
-	PIN_RWMutexReadLock(&contexts_lock);
-	it = contexts.find(tid);
-	notfound = it == contexts.end();
-	PIN_RWMutexUnlock(&contexts_lock);
+	if (!IsValidContext(context))
+		if (create)
+			context = CreatePinContext(tid);
+		else
+			context = INVALID_PIN_CONTEXT;
 
-	if (notfound)
-	{
-		if (create == false)
-			return INVALID_PIN_CONTEXT;
+	PIN_SetThreadData(per_thread_context_key, context, tid);
 
-		context = CreatePinContext(tid);
-		if (context == INVALID_PIN_CONTEXT)
-		{
-			LOG_PIN("Error allocating a new context for a thread, bailing out\n");
-			exit(-1);
-		} else if (context == EXISTS_PIN_CONTEXT)
-		{
-			//this shouldn't happen, but address it anyway.
-			//It means there was a TOCTOU between our find() and the create call.
-			PIN_RWMutexReadLock(&contexts_lock);
-			it = contexts.find(tid);
-			PIN_RWMutexUnlock(&contexts_lock);
-		} else
-			return context;
-	}
-
-	return it->second;
+	return context;
 }

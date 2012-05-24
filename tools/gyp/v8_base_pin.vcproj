@@ -148,7 +148,7 @@
 			<Tool
 				Name="VCLibrarianTool"
 				AdditionalOptions="/ignore:4221"
-				AdditionalDependencies="pin.lib libxed.lib libcpmt.lib libcmt.lib pinvm.lib $(OutDir)\pin_threading.lib kernel32.lib ntdll-32.lib $(NOINHERIT)"
+				AdditionalDependencies="pin.lib libxed.lib libcpmt.lib libcmt.lib pinvm.lib $(OutDir)\lib\pin_threading.lib kernel32.lib ntdll-32.lib $(NOINHERIT)"
 				OutputFile="$(OutDir)\lib\$(ProjectName).lib"
 				AdditionalLibraryDirectories="..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\ia32\lib;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\ia32\lib-ext;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\extras\xed2-ia32\lib"
 				IgnoreAllDefaultLibraries="true"

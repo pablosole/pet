@@ -25,13 +25,13 @@ enum ContextState { NEW_CONTEXT, INITIALIZED_CONTEXT, KILLING_CONTEXT, DEAD_CONT
 
 //we associate each PinContext with an application thread
 struct PinContext {
-	PIN_THREAD_UID tid;
+	THREADID tid;
 	Persistent<Context> context;
 	enum ContextState state;
 	PIN_MUTEX lock;
 	PIN_SEMAPHORE state_changed;
 
-	PinContext(PIN_THREAD_UID _tid) {
+	PinContext(THREADID _tid) {
 		PIN_MutexInit(&lock);
 		PIN_SemaphoreInit(&state_changed);
 		PIN_SemaphoreClear(&state_changed);
@@ -46,29 +46,30 @@ struct PinContext {
 };
 typedef VOID ENSURE_CALLBACK_FUNC(PinContext * arg);
 struct EnsureCallback {
-	PIN_THREAD_UID tid;
+	THREADID tid;
 	ENSURE_CALLBACK_FUNC *callback;
 	bool create;
 };
 
-typedef std::map<PIN_THREAD_UID, PinContext *> ContextsMap;
+typedef std::map<THREADID, PinContext *> ContextsMap;
 extern ContextsMap contexts;
 extern PIN_RWMUTEX contexts_lock;
 extern PIN_SEMAPHORE contexts_changed;
 extern bool kill_contexts;
-extern PIN_THREAD_UID context_manager_tid;
+extern THREADID context_manager_tid;
 extern PIN_SEMAPHORE context_manager_ready;
+extern TLS_KEY per_thread_context_key;
 static PinContext * const INVALID_PIN_CONTEXT = reinterpret_cast<PinContext *>(0);
 static PinContext * const EXISTS_PIN_CONTEXT = reinterpret_cast<PinContext *>(-1);
 static PinContext * const NO_MANAGER_CONTEXT = reinterpret_cast<PinContext *>(-2);
 extern ofstream OutFile;
 extern ofstream DebugFile;
 
-PinContext *EnsurePinContext(PIN_THREAD_UID tid, bool create = true);
-bool EnsurePinContextCallback(PIN_THREAD_UID tid, bool create, ENSURE_CALLBACK_FUNC *callback);
-inline bool EnsurePinContextCallback(PIN_THREAD_UID tid, ENSURE_CALLBACK_FUNC *callback) {
+PinContext *EnsurePinContext(THREADID tid, bool create = true);
+bool EnsurePinContextCallback(THREADID tid, bool create, ENSURE_CALLBACK_FUNC *callback);
+inline bool EnsurePinContextCallback(THREADID tid, ENSURE_CALLBACK_FUNC *callback) {
 	return EnsurePinContextCallback(tid, true, callback);
 }
 bool InitializePinContexts();
 void PinContextManager(void *notused);
-bool inline IsValidContext(PinContext *context) { return !(context == INVALID_PIN_CONTEXT || context == EXISTS_PIN_CONTEXT || context == NO_MANAGER_CONTEXT); }
+bool inline IsValidContext(PinContext *context) { return !(context == 0 || context == INVALID_PIN_CONTEXT || context == EXISTS_PIN_CONTEXT || context == NO_MANAGER_CONTEXT); }
