@@ -75,33 +75,6 @@ void Thread::Join() {
   }
 }
 
-/*
-// All TLS functions are actually exported by pinvm.dll, so we might just use those and leave this ones
-// for the JS tools.
-Thread::LocalStorageKey Thread::CreateThreadLocalKey() {
-  TLS_KEY result = PIN_CreateThreadDataKey(0);
-  ASSERT(result != TLS_OUT_OF_INDEXES);
-  return static_cast<LocalStorageKey>(result);
-}
-
-void Thread::DeleteThreadLocalKey(LocalStorageKey key) {
-  WINDOWS::BOOL result = PIN_DeleteThreadDataKey(static_cast<TLS_KEY>(key));
-  USE(result);
-  ASSERT(result);
-}
-
-void* Thread::GetThreadLocal(LocalStorageKey key) {
-  return PIN_GetThreadData(static_cast<TLS_KEY>(key), PIN_ThreadId());
-}
-
-
-void Thread::SetThreadLocal(LocalStorageKey key, void* value) {
-  WINDOWS::BOOL result = PIN_SetThreadData(static_cast<TLS_KEY>(key), value, PIN_ThreadId());
-  USE(result);
-  ASSERT(result);
-}
-*/
-
 void Thread::YieldCPU() {
   PIN_Yield();
 }
