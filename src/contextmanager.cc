@@ -44,6 +44,9 @@ void PinContextManager(void *notused)
 					{
 						Locker lock;
 						context->context = Context::New();
+
+						//All contexts can talk with everybody
+						context->context->SetSecurityToken(Undefined());
 					}
 					DEBUG("after context new");
 					if (context->context.IsEmpty())
@@ -103,9 +106,9 @@ void PinContextManager(void *notused)
 
 	DEBUG("Terminating scripts...");
 	V8::TerminateExecution();
-	DEBUG("Disposing V8 engine...");
-	V8::Dispose();
+
 	DEBUG("PinContextManager exit");
+	PIN_ExitProcess(0);
 }
 
 //Enter this function without the specific context's lock held
@@ -207,6 +210,9 @@ PinContext *CreatePinContext(THREADID tid)
 
 VOID EnsureContextCallbackHelper(VOID *v)
 {
+	if (kill_contexts)
+		return;
+
 	EnsureCallback *info = reinterpret_cast<EnsureCallback *>(v);
 	PIN_SemaphoreWait(&context_manager_ready);
 
@@ -224,6 +230,9 @@ VOID EnsureContextCallbackHelper(VOID *v)
 //The function is executed from an internal thread and it receives a PinContext * as its only argument.
 bool EnsurePinContextCallback(THREADID tid, bool create, ENSURE_CALLBACK_FUNC *callback)
 {
+	if (kill_contexts)
+		return false;
+
 	if (PIN_SemaphoreIsSet(&context_manager_ready))
 	{
 		PinContext *context = EnsurePinContext(tid, create);

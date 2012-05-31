@@ -75,6 +75,7 @@ void AddGenericInstrumentation(void *)
 
 KNOB<string> KnobOutputFile(KNOB_MODE_WRITEONCE, "pintool", "o", "pet-output.log", "specify output file name");
 KNOB<string> KnobDebugFile(KNOB_MODE_WRITEONCE, "pintool", "d", "pet-debug.log", "specify debug file name");
+KNOB<string> KnobV8Options(KNOB_MODE_WRITEONCE, "pintool", "e", "--preemption", "v8 engine options");
 
 int main(int argc, char * argv[])
 {
@@ -92,8 +93,9 @@ int main(int argc, char * argv[])
 	//Initialize default isolate
 	V8::Initialize();
 
-	//Just in case we want to mangle any internal V8 flag
-	V8::SetFlagsFromCommandLine(&argc, argv, false);
+	//Just in case we want to mangle with any V8 flag
+	V8::SetFlagsFromString(KnobV8Options.Value().c_str(), KnobV8Options.Value().length());
+	DEBUG("V8Options=" << KnobV8Options.Value()); 
 
 	if (!InitializePinContexts())
 	{
