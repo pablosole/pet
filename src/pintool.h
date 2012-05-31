@@ -53,7 +53,7 @@ struct EnsureCallback {
 
 typedef std::map<THREADID, PinContext *> ContextsMap;
 extern ContextsMap contexts;
-extern PIN_RWMUTEX contexts_lock;
+extern PIN_MUTEX contexts_lock;
 extern PIN_SEMAPHORE contexts_changed;
 extern bool kill_contexts;
 extern THREADID context_manager_tid;

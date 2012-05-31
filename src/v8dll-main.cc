@@ -4,7 +4,7 @@ ofstream OutFile;
 ofstream DebugFile;
 
 ContextsMap contexts;
-PIN_RWMUTEX contexts_lock;
+PIN_MUTEX contexts_lock;
 PIN_SEMAPHORE contexts_changed;
 bool kill_contexts = false;
 THREADID context_manager_tid;
@@ -89,6 +89,12 @@ int main(int argc, char * argv[])
 	//Must be executed before ANY v8 function
 	internal::InitializeIsolation();
 
+	//Initialize default isolate
+	V8::Initialize();
+
+	//Just in case we want to mangle any internal V8 flag
+	V8::SetFlagsFromCommandLine(&argc, argv, false);
+
 	if (!InitializePinContexts())
 	{
 		DEBUG("Failed to initialize the Context Manager");
@@ -96,6 +102,8 @@ int main(int argc, char * argv[])
 	}
 
 	PIN_AddApplicationStartFunction(&AddGenericInstrumentation, 0);
+
+	PIN_InitSymbols();
 
     // Start the program, never returns
     PIN_StartProgram();

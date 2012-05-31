@@ -26,7 +26,7 @@ void PinContextManager(void *notused)
 			break;
 
 		DEBUG("something to do in the context manager");
-		PIN_RWMutexWriteLock(&contexts_lock);
+		PIN_MutexLock(&contexts_lock);
 
 		it = contexts.begin();
 		while (it != contexts.end())
@@ -41,7 +41,10 @@ void PinContextManager(void *notused)
 
 					PIN_MutexLock(&context->lock);
 					DEBUG("after mutex");
-					context->context = Context::New();
+					{
+						Locker lock;
+						context->context = Context::New();
+					}
 					DEBUG("after context new");
 					if (context->context.IsEmpty())
 						context->state = ERROR_CONTEXT;
@@ -73,13 +76,13 @@ void PinContextManager(void *notused)
 			}
 		}
 
-		PIN_RWMutexUnlock(&contexts_lock);
+		PIN_MutexUnlock(&contexts_lock);
 	}
 
 	//If we're here, it means our tool is going to die soon, kill all contexts as gracefully as possible.
 
 	DEBUG("about to die, kill everything...");
-	PIN_RWMutexWriteLock(&contexts_lock);
+	PIN_MutexLock(&contexts_lock);
 	it = contexts.begin();
 	while (it != contexts.end())
 	{
@@ -94,17 +97,27 @@ void PinContextManager(void *notused)
 		delete context;
 		contexts.erase(it++);
 	}
-	PIN_RWMutexUnlock(&contexts_lock);
 
+	PIN_MutexUnlock(&contexts_lock);
 	DeinitializePinContexts();
+
+	DEBUG("Terminating scripts...");
+	V8::TerminateExecution();
+	DEBUG("Disposing V8 engine...");
+	V8::Dispose();
+	DEBUG("PinContextManager exit");
 }
 
 //Enter this function without the specific context's lock held
 bool DestroyPinContext(PinContext *context)
 {
 	PIN_MutexLock(&context->lock);
-	context->context.Dispose();
-	context->context.Clear();
+	{
+		Locker lock;
+		context->context.Dispose();
+		context->context.Clear();
+		V8::ContextDisposedNotification();
+	}
 	context->state = DEAD_CONTEXT;
 	PIN_MutexUnlock(&context->lock);
 	PIN_SemaphoreSet(&context->state_changed);
@@ -133,7 +146,7 @@ VOID ThreadContextDestructor(VOID *v)
 
 bool InitializePinContexts()
 {
-	if (!PIN_RWMutexInit(&contexts_lock) || 
+	if (!PIN_MutexInit(&contexts_lock) || 
 		!PIN_SemaphoreInit(&contexts_changed) || 
 		!PIN_SemaphoreInit(&context_manager_ready))
 		return false;
@@ -147,7 +160,7 @@ bool InitializePinContexts()
 
 void DeinitializePinContexts()
 {
-	PIN_RWMutexFini(&contexts_lock);
+	PIN_MutexFini(&contexts_lock);
 	PIN_SemaphoreFini(&contexts_changed);
 	PIN_SemaphoreFini(&context_manager_ready);
 	PIN_DeleteThreadDataKey(per_thread_context_key);
@@ -168,9 +181,9 @@ PinContext *CreatePinContext(THREADID tid)
 	if (!context)
 		return INVALID_PIN_CONTEXT;
 
-	PIN_RWMutexWriteLock(&contexts_lock);
+	PIN_MutexLock(&contexts_lock);
 	ret = contexts.insert(pair<THREADID, PinContext *>(tid, context));
-	PIN_RWMutexUnlock(&contexts_lock);
+	PIN_MutexUnlock(&contexts_lock);
 
 	if (ret.second == false)
 	{
