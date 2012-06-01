@@ -21,10 +21,13 @@ DebugFile << m << endl; \
 cerr << m << endl; \
 } while (false);
 
+#define CACHE_LINE  64
+#define CACHE_ALIGN __declspec(align(CACHE_LINE))
+
 enum ContextState { NEW_CONTEXT, INITIALIZED_CONTEXT, KILLING_CONTEXT, DEAD_CONTEXT, ERROR_CONTEXT };
 
 //we associate each PinContext with an application thread
-struct PinContext {
+struct CACHE_ALIGN PinContext {
 	THREADID tid;
 	Persistent<Context> context;
 	enum ContextState state;

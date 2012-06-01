@@ -130,7 +130,7 @@ bool DestroyPinContext(PinContext *context)
 
 VOID ThreadContextDestructor(VOID *v)
 {
-	PinContext *context = reinterpret_cast<PinContext *>(v);
+	PinContext *context = static_cast<PinContext *>(v);
 
 	if (!IsValidContext(context))
 		return;
@@ -213,7 +213,7 @@ VOID EnsureContextCallbackHelper(VOID *v)
 	if (kill_contexts)
 		return;
 
-	EnsureCallback *info = reinterpret_cast<EnsureCallback *>(v);
+	EnsureCallback *info = static_cast<EnsureCallback *>(v);
 	PIN_SemaphoreWait(&context_manager_ready);
 
 	PinContext *context = EnsurePinContext(info->tid, info->create);
@@ -255,7 +255,7 @@ PinContext *EnsurePinContext(THREADID tid, bool create)
 	if (!PIN_SemaphoreIsSet(&context_manager_ready))
 		return NO_MANAGER_CONTEXT;
 
-	PinContext *context = reinterpret_cast<PinContext *>(PIN_GetThreadData(per_thread_context_key, tid));
+	PinContext *context = static_cast<PinContext *>(PIN_GetThreadData(per_thread_context_key, tid));
 
 	if (!IsValidContext(context))
 		if (create)
