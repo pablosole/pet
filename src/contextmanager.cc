@@ -11,9 +11,6 @@ void PinContextManager(void *notused)
 
 	DEBUG("PinContextManager initiated...");
 
-	//The thread is started after PIN initialization, but there's still a race
-	PIN_Sleep(2000);
-
 	PIN_SemaphoreSet(&context_manager_ready);
 
 	while (true)
@@ -40,15 +37,16 @@ void PinContextManager(void *notused)
 					DEBUG("create new context for tid:" << tid);
 
 					PIN_MutexLock(&context->lock);
-					DEBUG("after mutex");
+					context->isolate = Isolate::New();
+					if (context->isolate != 0)
 					{
-						Locker lock;
+						Isolate::Scope iscope(context->isolate);
+						Locker lock(context->isolate);
 						context->context = Context::New();
 
-						//All contexts can talk with everybody
-						context->context->SetSecurityToken(Undefined());
+						//inform PinContext struct in case we need it from a javascript related function
+						context->isolate->SetData(context);
 					}
-					DEBUG("after context new");
 					if (context->context.IsEmpty())
 						context->state = ERROR_CONTEXT;
 					else
@@ -104,10 +102,10 @@ void PinContextManager(void *notused)
 	PIN_MutexUnlock(&contexts_lock);
 	DeinitializePinContexts();
 
-	DEBUG("Terminating scripts...");
-	V8::TerminateExecution();
-
 	DEBUG("PinContextManager exit");
+
+	OutFile.close();
+	DebugFile.close();
 	PIN_ExitProcess(0);
 }
 
@@ -116,11 +114,15 @@ bool DestroyPinContext(PinContext *context)
 {
 	PIN_MutexLock(&context->lock);
 	{
-		Locker lock;
+		Isolate::Scope iscope(context->isolate);
+		Locker lock(context->isolate);
+		V8::TerminateExecution(context->isolate);
 		context->context.Dispose();
 		context->context.Clear();
 		V8::ContextDisposedNotification();
 	}
+
+	context->isolate->Dispose();
 	context->state = DEAD_CONTEXT;
 	PIN_MutexUnlock(&context->lock);
 	PIN_SemaphoreSet(&context->state_changed);
@@ -141,10 +143,6 @@ VOID ThreadContextDestructor(VOID *v)
 	PIN_MutexUnlock(&context->lock);
 
 	PIN_SemaphoreSet(&contexts_changed);
-
-	//wait until the context is actually destroyed (just for debugging)
-	PIN_SemaphoreWait(&context->state_changed);
-	PIN_SemaphoreClear(&context->state_changed);
 }
 
 bool InitializePinContexts()
@@ -158,6 +156,13 @@ bool InitializePinContexts()
 	if (per_thread_context_key == -1)
 		return false;
 
+	{
+		Locker lock;
+		default_context = Context::New();
+		if (default_context.IsEmpty())
+			return false;
+	}
+
 	return (context_manager_tid = PIN_SpawnInternalThread(PinContextManager, 0, 0, NULL)) != INVALID_THREADID;
 }
 
@@ -167,6 +172,9 @@ void DeinitializePinContexts()
 	PIN_SemaphoreFini(&contexts_changed);
 	PIN_SemaphoreFini(&context_manager_ready);
 	PIN_DeleteThreadDataKey(per_thread_context_key);
+
+	V8::TerminateExecution();
+	default_context.Dispose();
 }
 
 //this function returns a new context and adds it to the map of contexts or returns

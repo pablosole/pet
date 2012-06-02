@@ -29,6 +29,7 @@ enum ContextState { NEW_CONTEXT, INITIALIZED_CONTEXT, KILLING_CONTEXT, DEAD_CONT
 //we associate each PinContext with an application thread
 struct CACHE_ALIGN PinContext {
 	THREADID tid;
+	Isolate *isolate;
 	Persistent<Context> context;
 	enum ContextState state;
 	PIN_MUTEX lock;
@@ -40,6 +41,7 @@ struct CACHE_ALIGN PinContext {
 		PIN_SemaphoreClear(&state_changed);
 		state = NEW_CONTEXT;
 		context.Clear();
+		isolate = 0;
 		tid = _tid;
 	}
 	~PinContext() {
@@ -55,6 +57,7 @@ struct EnsureCallback {
 };
 
 typedef std::map<THREADID, PinContext *> ContextsMap;
+extern Persistent<Context> default_context;
 extern ContextsMap contexts;
 extern PIN_MUTEX contexts_lock;
 extern PIN_SEMAPHORE contexts_changed;
@@ -74,5 +77,6 @@ inline bool EnsurePinContextCallback(THREADID tid, ENSURE_CALLBACK_FUNC *callbac
 	return EnsurePinContextCallback(tid, true, callback);
 }
 bool InitializePinContexts();
+VOID AddGenericInstrumentation(VOID *);
 void PinContextManager(void *notused);
 bool inline IsValidContext(PinContext *context) { return !(context == 0 || context == INVALID_PIN_CONTEXT || context == EXISTS_PIN_CONTEXT || context == NO_MANAGER_CONTEXT); }

@@ -217,11 +217,23 @@
 						>
 					</File>
 					<File
+						RelativePath="..\..\src\pin-notifications.cc"
+						>
+					</File>
+					<File
+						RelativePath="..\..\src\pin-utils.cc"
+						>
+					</File>
+					<File
 						RelativePath="..\..\src\pintool.h"
 						>
 					</File>
 					<File
 						RelativePath="..\..\src\v8dll-main.cc"
+						>
+					</File>
+					<File
+						RelativePath="..\..\src\v8dll-main.h"
 						>
 					</File>
 				</Filter>
