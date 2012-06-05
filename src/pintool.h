@@ -24,31 +24,8 @@ cerr << m << endl; \
 #define CACHE_LINE  64
 #define CACHE_ALIGN __declspec(align(CACHE_LINE))
 
-enum ContextState { NEW_CONTEXT, INITIALIZED_CONTEXT, KILLING_CONTEXT, DEAD_CONTEXT, ERROR_CONTEXT };
+class PinContext;
 
-//we associate each PinContext with an application thread
-struct CACHE_ALIGN PinContext {
-	THREADID tid;
-	Isolate *isolate;
-	Persistent<Context> context;
-	enum ContextState state;
-	PIN_MUTEX lock;
-	PIN_SEMAPHORE state_changed;
-
-	PinContext(THREADID _tid) {
-		PIN_MutexInit(&lock);
-		PIN_SemaphoreInit(&state_changed);
-		PIN_SemaphoreClear(&state_changed);
-		state = NEW_CONTEXT;
-		context.Clear();
-		isolate = 0;
-		tid = _tid;
-	}
-	~PinContext() {
-		PIN_MutexFini(&lock);
-		PIN_SemaphoreFini(&state_changed);
-	}
-};
 typedef VOID ENSURE_CALLBACK_FUNC(PinContext * arg);
 struct EnsureCallback {
 	THREADID tid;
@@ -56,27 +33,124 @@ struct EnsureCallback {
 	bool create;
 };
 
+PinContext * const INVALID_PIN_CONTEXT = reinterpret_cast<PinContext *>(0);
+PinContext * const EXISTS_PIN_CONTEXT = reinterpret_cast<PinContext *>(-1);
+PinContext * const NO_MANAGER_CONTEXT = reinterpret_cast<PinContext *>(-2);
+
+//we associate each PinContext with an application thread
+class CACHE_ALIGN PinContext {
+public:
+	enum ContextState { NEW_CONTEXT, INITIALIZED_CONTEXT, KILLING_CONTEXT, DEAD_CONTEXT, ERROR_CONTEXT };
+
+	PinContext(THREADID _tid) {
+		tid = _tid;
+		PIN_MutexInit(&lock);
+		PIN_SemaphoreInit(&changed);
+		PIN_SemaphoreClear(&changed);
+		state = NEW_CONTEXT;
+		context.Clear();
+		isolate = 0;
+	}
+	~PinContext() {
+		PIN_MutexFini(&lock);
+		PIN_SemaphoreFini(&changed);
+	}
+
+	ContextState inline GetState(bool locked = false) {
+		ContextState tmp;
+		if (locked) Lock();
+		tmp = state;
+		if (locked) Unlock();
+		return tmp;
+	}
+	void inline SetState(ContextState s) { state = s; }
+
+	void inline Lock() { PIN_MutexLock(&lock); }
+	void inline Unlock() { PIN_MutexUnlock(&lock); }
+	void inline Wait() {
+		PIN_SemaphoreWait(&changed);
+		PIN_SemaphoreClear(&changed);
+	}
+	void inline Notify() { PIN_SemaphoreSet(&changed); }
+
+	THREADID inline GetTid() { return tid; }
+
+	bool CreateJSContext();
+	void DestroyJSContext();
+
+	static VOID ThreadInfoDestructor(VOID *);
+
+	static bool inline IsValid(PinContext *context) { return !(context == 0 || context == INVALID_PIN_CONTEXT || context == EXISTS_PIN_CONTEXT || context == NO_MANAGER_CONTEXT); }
+
+private:
+	THREADID tid;
+	Isolate *isolate;
+	Persistent<Context> context;
+	enum ContextState state;
+	PIN_MUTEX lock;
+	PIN_SEMAPHORE changed;
+};
+
 typedef std::map<THREADID, PinContext *> ContextsMap;
-extern Persistent<Context> default_context;
-extern ContextsMap contexts;
-extern PIN_MUTEX contexts_lock;
-extern PIN_SEMAPHORE contexts_changed;
-extern bool kill_contexts;
-extern THREADID context_manager_tid;
-extern PIN_SEMAPHORE context_manager_ready;
-extern TLS_KEY per_thread_context_key;
-static PinContext * const INVALID_PIN_CONTEXT = reinterpret_cast<PinContext *>(0);
-static PinContext * const EXISTS_PIN_CONTEXT = reinterpret_cast<PinContext *>(-1);
-static PinContext * const NO_MANAGER_CONTEXT = reinterpret_cast<PinContext *>(-2);
+class ContextManager {
+ public:
+	enum ContextManagerState { RUNNING_MANAGER, ERROR_MANAGER, KILLING_MANAGER, DEAD_MANAGER };
+	ContextManager();
+	~ContextManager();
+
+	inline bool IsValid() { return (state == RUNNING_MANAGER || state == KILLING_MANAGER); }
+	inline bool IsRunning() { return state == RUNNING_MANAGER; }
+	ContextManagerState inline GetState() { return state; }
+	void inline SetState(ContextManagerState s) { state = s; }
+
+	void inline Ready() { PIN_SemaphoreSet(&ready); }
+	void inline WaitReady() { PIN_SemaphoreWait(&ready); }
+	bool inline IsReady() { return PIN_SemaphoreIsSet(&ready); }
+
+	void inline Wait() {
+		PIN_SemaphoreWait(&changed);
+		PIN_SemaphoreClear(&changed);
+	}
+	void inline Notify() { PIN_SemaphoreSet(&changed); }
+	void inline Abort() {
+		SetState(KILLING_MANAGER);
+		Notify();
+	}
+
+	void inline Lock() { PIN_MutexLock(&lock); }
+	void inline Unlock() { PIN_MutexUnlock(&lock); }
+
+
+	//Context Manager thread function
+	static VOID Run(VOID *);
+
+	//Helper functions
+	void ProcessChanges();
+	void KillAllContexts();
+	PinContext *CreateContext(THREADID tid);
+	static VOID EnsureContextCallbackHelper(VOID *);
+
+	//API
+	bool EnsurePinContextCallback(THREADID tid, bool create, ENSURE_CALLBACK_FUNC *callback);
+	bool inline EnsurePinContextCallback(THREADID tid, ENSURE_CALLBACK_FUNC *callback) {
+		return EnsurePinContextCallback(tid, true, callback);
+	}
+	PinContext *EnsurePinContext(THREADID tid, bool create = true);
+
+ private:
+	ContextManagerState state;
+	Persistent<Context> default_context;
+	ContextsMap contexts;
+	PIN_MUTEX lock;
+	PIN_SEMAPHORE changed;
+	THREADID tid;
+	PIN_SEMAPHORE ready;
+	TLS_KEY per_thread_context_key;
+};
+
 extern ofstream OutFile;
 extern ofstream DebugFile;
+extern ContextManager *ctxmgr;
 
-PinContext *EnsurePinContext(THREADID tid, bool create = true);
-bool EnsurePinContextCallback(THREADID tid, bool create, ENSURE_CALLBACK_FUNC *callback);
-inline bool EnsurePinContextCallback(THREADID tid, ENSURE_CALLBACK_FUNC *callback) {
-	return EnsurePinContextCallback(tid, true, callback);
-}
-bool InitializePinContexts();
 VOID AddGenericInstrumentation(VOID *);
-void PinContextManager(void *notused);
-bool inline IsValidContext(PinContext *context) { return !(context == 0 || context == INVALID_PIN_CONTEXT || context == EXISTS_PIN_CONTEXT || context == NO_MANAGER_CONTEXT); }
+void KillPinTool();

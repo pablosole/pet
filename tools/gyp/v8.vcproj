@@ -217,6 +217,10 @@
 						>
 					</File>
 					<File
+						RelativePath="..\..\src\pin-contexts.cc"
+						>
+					</File>
+					<File
 						RelativePath="..\..\src\pin-notifications.cc"
 						>
 					</File>

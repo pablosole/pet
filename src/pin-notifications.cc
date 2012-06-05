@@ -2,7 +2,7 @@
 
 VOID OnThreadStart(PinContext *context)
 {
-	DEBUG("OnThreadStart for tid:" << context->tid);
+	DEBUG("OnThreadStart for tid:" << context->GetTid());
 }
 
 void ThreadStart(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *v)
@@ -11,7 +11,7 @@ void ThreadStart(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *v)
 		return;
 
 	DEBUG("ThreadStart called:" << tid);
-	if (!EnsurePinContextCallback(tid, OnThreadStart))
+	if (!ctxmgr->EnsurePinContextCallback(tid, OnThreadStart))
 		DEBUG("Failed to create EnsurePinContext callback for tid " << tid);
 }
 
@@ -27,8 +27,7 @@ void Fini(INT32 code, void *v)
 {
 	DEBUG("Fini called");
 
-	kill_contexts = true;
-	PIN_SemaphoreSet(&contexts_changed);
+	ctxmgr->Abort();
 }
 
 VOID AddGenericInstrumentation(VOID *)
