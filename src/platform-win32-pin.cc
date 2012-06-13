@@ -79,6 +79,34 @@ void Thread::YieldCPU() {
   PIN_Yield();
 }
 
+Thread::LocalStorageKey Thread::CreateThreadLocalKey() {
+  TLS_KEY result = PIN_CreateThreadDataKey(NULL);
+  ASSERT(result != TLS_OUT_OF_INDEXES);
+  return static_cast<LocalStorageKey>(result);
+}
+
+
+void Thread::DeleteThreadLocalKey(LocalStorageKey key) {
+  bool result = PIN_DeleteThreadDataKey(static_cast<TLS_KEY>(key));
+  USE(result);
+  ASSERT(result);
+}
+
+
+void* Thread::GetThreadLocal(LocalStorageKey key) {
+  return PIN_GetThreadData(static_cast<TLS_KEY>(key), PIN_ThreadId());
+}
+
+
+void Thread::SetThreadLocal(LocalStorageKey key, void* value) {
+  bool result;
+
+  do {
+	result = PIN_SetThreadData(static_cast<TLS_KEY>(key), value, PIN_ThreadId());
+	if (!result) PIN_Yield();
+  } while (!result);
+}
+
 class Win32PinSemaphore : public Semaphore {
  public:
   explicit Win32PinSemaphore(int count) {

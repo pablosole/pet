@@ -1629,7 +1629,6 @@ void Thread::Join() {
 void Thread::YieldCPU() {
   Sleep(0);
 }
-#endif
 
 
 Thread::LocalStorageKey Thread::CreateThreadLocalKey() {
@@ -1656,6 +1655,7 @@ void Thread::SetThreadLocal(LocalStorageKey key, void* value) {
   USE(result);
   ASSERT(result);
 }
+#endif
 
 
 // ----------------------------------------------------------------------------
