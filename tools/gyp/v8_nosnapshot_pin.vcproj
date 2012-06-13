@@ -119,7 +119,7 @@
 				FavorSizeOrSpeed="0"
 				OmitFramePointers="false"
 				AdditionalIncludeDirectories="..\..\src;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\source\include;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\source\include\gen;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\source\tools\InstLib;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\extras\xed2-ia32\include;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\extras\components\include"
-				PreprocessorDefinitions="&quot;_CRT_SECURE_NO_DEPRECATE&quot;;&quot;_CRT_NONSTDC_NO_DEPRECATE&quot;;&quot;ENABLE_DEBUGGER_SUPPORT&quot;;&quot;V8_TARGET_ARCH_IA32&quot;;&quot;WIN32&quot;;&quot;BUILDING_V8_SHARED&quot;;&quot;V8_SHARED&quot;;TARGET_WINDOWS;BIGARRAY_MULTIPLIER=1;USING_XED;HOST_IA32;TARGET_IA32;_SECURE_SCL=0"
+				PreprocessorDefinitions="&quot;_CRT_SECURE_NO_DEPRECATE&quot;;&quot;_CRT_NONSTDC_NO_DEPRECATE&quot;;&quot;ENABLE_DEBUGGER_SUPPORT&quot;;&quot;V8_TARGET_ARCH_IA32&quot;;&quot;WIN32&quot;;&quot;BUILDING_V8_SHARED&quot;;&quot;V8_SHARED&quot;;TARGET_WINDOWS;BIGARRAY_MULTIPLIER=1;USING_XED;HOST_IA32;TARGET_IA32;_SECURE_SCL=0;ENABLE_DISASSEMBLER;V8_ENABLE_CHECKS;OBJECT_PRINT;DEBUG"
 				StringPooling="true"
 				MinimalRebuild="false"
 				ExceptionHandling="0"

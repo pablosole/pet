@@ -82,10 +82,12 @@ public:
 
 	static bool inline IsValid(PinContext *context) { return !(context == 0 || context == INVALID_PIN_CONTEXT || context == EXISTS_PIN_CONTEXT || context == NO_MANAGER_CONTEXT); }
 
-private:
-	THREADID tid;
+	//doesn't make sense to have an accessor for this ones
 	Isolate *isolate;
 	Persistent<Context> context;
+
+private:
+	THREADID tid;
 	enum ContextState state;
 	PIN_MUTEX lock;
 	PIN_SEMAPHORE changed;

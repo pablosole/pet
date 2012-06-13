@@ -946,6 +946,10 @@
 						>
 					</File>
 					<File
+						RelativePath="..\..\src\runtime-pin.h"
+						>
+					</File>
+					<File
 						RelativePath="..\..\src\runtime-profiler.cc"
 						>
 					</File>

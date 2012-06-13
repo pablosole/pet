@@ -25,6 +25,13 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#ifdef TARGET_WINDOWS
+#include "pin.H"
+#undef LOG
+#undef ASSERT
+#define WINDOWS_H_IN_NAMESPACE
+#endif
+
 #include "v8.h"
 
 #include "accessors.h"
@@ -323,6 +330,12 @@ void ExternalReferenceTable::PopulateTable(Isolate* isolate) {
       7,
       "IncrementalMarking::RecordWrite");
 
+  //Pin support
+#ifdef TARGET_WINDOWS
+#define FROM_SERIALIZE_CC
+#include "inlined-pin.h"
+#undef FROM_SERIALIZE_CC
+#endif
 
 
   // Miscellaneous

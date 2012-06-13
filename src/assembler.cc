@@ -32,6 +32,14 @@
 // modified significantly by Google Inc.
 // Copyright 2012 the V8 project authors. All rights reserved.
 
+#ifdef TARGET_WINDOWS
+#include "pin.H"
+#undef LOG
+#undef ASSERT
+#undef UNUSED
+#define WINDOWS_H_IN_NAMESPACE
+#endif
+
 #include "assembler.h"
 
 #include <math.h>  // For cos, log, pow, sin, tan, etc.
@@ -1312,5 +1320,11 @@ bool PositionsRecorder::WriteRecordedPositions() {
   // Return whether something was written.
   return written;
 }
+
+#ifdef TARGET_WINDOWS
+#define FROM_ASSEMBLER_CC
+#include "inlined-pin.h"
+#undef FROM_ASSEMBLER_CC
+#endif
 
 } }  // namespace v8::internal

@@ -3,6 +3,34 @@
 VOID OnThreadStart(PinContext *context)
 {
 	DEBUG("OnThreadStart for tid:" << context->GetTid());
+	
+	Isolate::Scope iscope(context->isolate);
+	Locker lock(context->isolate);
+	HandleScope hscope;
+	Context::Scope cscope(context->context);
+
+	Handle<String> source = String::New("Pin.PIN_GetPid()");
+
+	Handle<Script> script = Script::Compile(source);
+	if (script.IsEmpty()) {
+		DEBUG("Exception compiling.");
+		return;
+	}
+
+	TryCatch trycatch;
+	Handle<Value> result = script->Run();
+	if (result.IsEmpty()) {
+		Handle<Value> exception = trycatch.Exception();
+		String::AsciiValue exception_str(exception);
+		if (*exception_str) {
+			DEBUG("Exception running: " << *exception_str);
+		} else 
+			DEBUG("Unknown exception running");
+		return;
+	}
+
+	String::AsciiValue ascii(result);
+	DEBUG("PIN_GetPid() result: " << *ascii);
 }
 
 void ThreadStart(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *v)

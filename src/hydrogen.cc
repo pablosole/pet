@@ -25,6 +25,14 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#ifdef TARGET_WINDOWS
+#include "pin.H"
+#undef LOG
+#undef ASSERT
+#undef UNUSED
+#define WINDOWS_H_IN_NAMESPACE
+#endif
+
 #include "v8.h"
 #include "hydrogen.h"
 
@@ -8263,6 +8271,11 @@ void HGraphBuilder::GenerateFastAsciiArrayJoin(CallRuntime* call) {
   return Bailout("inlined runtime function: FastAsciiArrayJoin");
 }
 
+#ifdef TARGET_WINDOWS
+#define FROM_HYDROGEN_CC
+#include "inlined-pin.h"
+#undef FROM_HYDROGEN_CC
+#endif
 
 #undef CHECK_BAILOUT
 #undef CHECK_ALIVE

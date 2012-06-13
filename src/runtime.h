@@ -30,6 +30,7 @@
 
 #include "allocation.h"
 #include "zone.h"
+#include "runtime-pin.h"
 
 namespace v8 {
 namespace internal {
@@ -481,13 +482,14 @@ namespace internal {
   RUNTIME_FUNCTION_LIST_ALWAYS_1(F) \
   RUNTIME_FUNCTION_LIST_ALWAYS_2(F) \
   RUNTIME_FUNCTION_LIST_DEBUG(F) \
-  RUNTIME_FUNCTION_LIST_DEBUGGER_SUPPORT(F)
+  RUNTIME_FUNCTION_LIST_DEBUGGER_SUPPORT(F) \
+  RUNTIME_FUNCTION_LIST_PIN(F)
 
 // ----------------------------------------------------------------------------
 // INLINE_FUNCTION_LIST defines all inlined functions accessed
 // with a native call of the form %_name from within JS code.
 // Entries have the form F(name, number of arguments, number of return values).
-#define INLINE_FUNCTION_LIST(F) \
+#define INLINE_FUNCTION_LIST_V8(F) \
   F(IsSmi, 1, 1)                                                             \
   F(IsNonNegativeSmi, 1, 1)                                                  \
   F(IsArray, 1, 1)                                                           \
@@ -519,6 +521,17 @@ namespace internal {
   F(GetCachedArrayIndex, 1, 1)                                               \
   F(FastAsciiArrayJoin, 2, 1)
 
+#ifdef TARGET_WINDOWS
+#define FROM_RUNTIME_H
+#include "inlined-pin.h"
+#undef FROM_RUNTIME_H
+#else
+#define INLINE_FUNCTION_LIST_PIN(F)
+#endif
+
+#define INLINE_FUNCTION_LIST(F) \
+	INLINE_FUNCTION_LIST_V8(F) \
+	INLINE_FUNCTION_LIST_PIN(F)
 
 // ----------------------------------------------------------------------------
 // INLINE_AND_RUNTIME_FUNCTION_LIST defines all inlined functions accessed

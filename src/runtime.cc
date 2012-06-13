@@ -13396,6 +13396,10 @@ RUNTIME_FUNCTION(MaybeObject*, Runtime_HaveSameMap) {
   return isolate->heap()->ToBoolean(obj1->map() == obj2->map());
 }
 
+#ifdef TARGET_WINDOWS
+#include "runtime-pin.cc"
+#endif
+
 // ----------------------------------------------------------------------------
 // Implementation of Runtime
 
@@ -13479,6 +13483,5 @@ void Runtime::PerformGC(Object* result) {
                                        "Runtime::PerformGC");
   }
 }
-
 
 } }  // namespace v8::internal

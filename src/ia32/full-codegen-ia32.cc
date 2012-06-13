@@ -4465,6 +4465,13 @@ void FullCodeGenerator::PushFunctionArgumentForContextAllocation() {
 
 
 // ----------------------------------------------------------------------------
+// PIN support.
+#ifdef TARGET_WINDOWS
+#include "inlined_impl-pin.cc"
+#endif
+
+
+// ----------------------------------------------------------------------------
 // Non-local control flow support.
 
 void FullCodeGenerator::EnterFinallyBlock() {
