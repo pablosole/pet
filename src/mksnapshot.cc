@@ -302,7 +302,17 @@ int main(int argc, char** argv) {
   }
 #endif
   i::Serializer::Enable();
-  Persistent<Context> context = v8::Context::New();
+
+	TryCatch trycatch;
+	Persistent<Context> context = v8::Context::New();
+	if (context.IsEmpty()) {
+		HandleScope scope;
+		Handle<Value> exception = trycatch.Exception();
+		String::AsciiValue exception_str(exception);
+		printf("Exception: %s\n", *exception_str);
+		exit(-1);
+	}
+
   ASSERT(!context.IsEmpty());
   // Make sure all builtin scripts are cached.
   { HandleScope scope;
