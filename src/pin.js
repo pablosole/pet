@@ -4,10 +4,20 @@ global.Pin = new $Object();
 
 var $Pin = global.Pin;
 
-$Pin.PIN_GetPid = function() {
+function PIN_GetPid() {
     return %_PIN_GetPid();
 }
 
-$Pin.PIN_Test = function(arg) {
+function PIN_Test(arg) {
     return %PIN_Test(arg);
 }
+
+function SetupPIN() {
+  %CheckIsBootstrapping();
+  InstallFunctions($Pin, DONT_ENUM, $Array(
+    "getPid", PIN_GetPid,
+    "test", PIN_Test
+  ));
+}
+
+SetupPIN();

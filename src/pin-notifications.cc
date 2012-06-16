@@ -9,7 +9,7 @@ VOID OnThreadStart(PinContext *context)
 	HandleScope hscope;
 	Context::Scope cscope(context->context);
 
-	Handle<String> source = String::New("Pin.PIN_GetPid()");
+	Handle<String> source = String::New("Pin.getPid()");
 
 	Handle<Script> script = Script::Compile(source);
 	if (script.IsEmpty()) {
@@ -60,11 +60,11 @@ void Fini(INT32 code, void *v)
 
 VOID AddGenericInstrumentation(VOID *)
 {
-	PIN_AddThreadStartFunction(&ThreadStart, 0);
-	PIN_AddThreadFiniFunction(&ThreadFini, 0);
-	PIN_AddFiniUnlockedFunction(&Fini, 0);
-
 	//this is executed from the app's main thread
 	//before the first ThreadStart
 	DEBUG("Main TID:" << PIN_ThreadId());
+
+	PIN_AddThreadStartFunction(&ThreadStart, 0);
+	PIN_AddThreadFiniFunction(&ThreadFini, 0);
+	PIN_AddFiniUnlockedFunction(&Fini, 0);
 }
