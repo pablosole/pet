@@ -23,7 +23,8 @@ VOID ContextManager::Run(VOID *_ctx)
 		if (!ctx->IsRunning())
 			break;
 
-		DEBUG("something to do in the context manager");
+		ctx->ProcessCallbacks();
+
 		ctx->ProcessChanges();
 	}
 
@@ -35,6 +36,37 @@ VOID ContextManager::Run(VOID *_ctx)
 
 	//This should go away at some point:
 	KillPinTool();
+}
+
+
+void ContextManager::ProcessCallbacksHelper(VOID *v)
+{
+	ContextManager *ctx = static_cast<ContextManager *>(v);
+
+	ctx->LockCallbacks();
+	while (!ctx->callbacks.empty())
+	{
+		EnsureCallback *info = ctx->callbacks.back();
+		ctx->callbacks.pop_back();
+		PinContext *context = ctx->EnsurePinContext(info->tid, info->create);
+
+		if (!PinContext::IsValid(context))
+		{
+			DEBUG("Couldn't ensure a valid context for callback on tid " << info->tid);
+		} else {
+			info->callback(context);
+		}
+	}
+	ctx->UnlockCallbacks();
+}
+
+
+void ContextManager::ProcessCallbacks()
+{
+	if (callbacks.empty() || CallbacksIsProcessing())
+		return;
+
+	PIN_SpawnInternalThread(ContextManager::ProcessCallbacksHelper, this, 0, NULL);
 }
 
 
@@ -110,6 +142,7 @@ void ContextManager::KillAllContexts()
 ContextManager::ContextManager()
 {
 	if (!PIN_MutexInit(&lock) || 
+		!PIN_MutexInit(&lock_callbacks) || 
 		!PIN_SemaphoreInit(&changed) || 
 		!PIN_SemaphoreInit(&ready))
 	{
@@ -148,6 +181,7 @@ ContextManager::~ContextManager()
 		return;
 
 	PIN_MutexFini(&lock);
+	PIN_MutexFini(&lock_callbacks);
 	PIN_SemaphoreFini(&changed);
 	PIN_SemaphoreFini(&ready);
 	PIN_DeleteThreadDataKey(per_thread_context_key);
@@ -189,27 +223,9 @@ PinContext *ContextManager::CreateContext(THREADID tid)
 	return (context->GetState(true) == PinContext::INITIALIZED_CONTEXT) ? context : INVALID_PIN_CONTEXT;
 }
 
-VOID ContextManager::EnsureContextCallbackHelper(VOID *v)
-{
-	if (!ctxmgr || !ctxmgr->IsRunning())
-		return;
-
-	EnsureCallback *info = static_cast<EnsureCallback *>(v);
-	ctxmgr->WaitReady();
-
-	PinContext *context = ctxmgr->EnsurePinContext(info->tid, info->create);
-
-	if (!PinContext::IsValid(context))
-	{
-		DEBUG("Couldn't ensure a valid context for callback on tid " << info->tid);
-		return;
-	}
-	info->callback(context);
-}
-
 //This function is used to queue a callback to run whenever the Context Manager is ready to work.
 //The function is executed from an internal thread and it receives a PinContext * as its only argument.
-bool ContextManager::EnsurePinContextCallback(THREADID tid, bool create, ENSURE_CALLBACK_FUNC *callback)
+bool ContextManager::EnsurePinContextCallback(THREADID tid, ENSURE_CALLBACK_FUNC *callback, bool create)
 {
 	if (!IsRunning())
 		return false;
@@ -226,22 +242,27 @@ bool ContextManager::EnsurePinContextCallback(THREADID tid, bool create, ENSURE_
 	info->tid = tid;
 	info->create = create;
 
-	return PIN_SpawnInternalThread(ContextManager::EnsureContextCallbackHelper, info, 0, 0) != INVALID_THREADID;
+	LockCallbacks();
+	callbacks.push_front(info);
+	UnlockCallbacks();
+
+	Notify();
+	return true;
 }
 
 PinContext *ContextManager::EnsurePinContext(THREADID tid, bool create)
 {
 	DEBUG("EnsurePinContext called");
 
-	if (!IsReady())
-		return NO_MANAGER_CONTEXT;
-
 	PinContext *context = static_cast<PinContext *>(PIN_GetThreadData(per_thread_context_key, tid));
 
-	if (!PinContext::IsValid(context) && create)
-		context = CreateContext(tid);
+	if (!PinContext::IsValid(context) && create) {
+		if (!IsReady())
+			return NO_MANAGER_CONTEXT;
 
-	PIN_SetThreadData(per_thread_context_key, context, tid);
+		context = CreateContext(tid);
+		PIN_SetThreadData(per_thread_context_key, context, tid);
+	}
 
 	return context;
 }

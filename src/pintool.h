@@ -15,6 +15,7 @@ namespace WINDOWS {
 #include <map>
 #include <iostream>
 #include <fstream>
+#include <list>
 
 #define DEBUG(m) do { \
 DebugFile << m << endl; \
@@ -121,29 +122,44 @@ class ContextManager {
 
 	void inline Lock() { PIN_MutexLock(&lock); }
 	void inline Unlock() { PIN_MutexUnlock(&lock); }
+	void inline LockCallbacks() { PIN_MutexLock(&lock_callbacks); }
+	void inline UnlockCallbacks() { PIN_MutexUnlock(&lock_callbacks); }
+	bool inline CallbacksIsProcessing() {
+		if (PIN_MutexTryLock(&lock_callbacks) == false)
+			return true;
+		else
+			PIN_MutexUnlock(&lock_callbacks);
+		return false;
+	}
 
 
 	//Context Manager thread function
 	static VOID Run(VOID *);
 
 	//Helper functions
+	void ProcessCallbacks();
 	void ProcessChanges();
 	void KillAllContexts();
 	PinContext *CreateContext(THREADID tid);
-	static VOID EnsureContextCallbackHelper(VOID *);
+	static VOID ProcessCallbacksHelper(VOID *v);
 
 	//API
-	bool EnsurePinContextCallback(THREADID tid, bool create, ENSURE_CALLBACK_FUNC *callback);
-	bool inline EnsurePinContextCallback(THREADID tid, ENSURE_CALLBACK_FUNC *callback) {
-		return EnsurePinContextCallback(tid, true, callback);
-	}
+	bool EnsurePinContextCallback(THREADID tid, ENSURE_CALLBACK_FUNC *callback, bool create = true);
 	PinContext *EnsurePinContext(THREADID tid, bool create = true);
+
+	//for fast access, this should be equivalent to: TlsGetValue(per_thread_context)
+	inline PinContext *LoadPinContext(THREADID tid) {
+		return EnsurePinContext(tid, false);
+	}
+	inline PinContext *LoadPinContext() { return LoadPinContext(PIN_ThreadId()); }
 
  private:
 	ContextManagerState state;
 	Persistent<Context> default_context;
 	ContextsMap contexts;
+	list<EnsureCallback *> callbacks;
 	PIN_MUTEX lock;
+	PIN_MUTEX lock_callbacks;
 	PIN_SEMAPHORE changed;
 	THREADID tid;
 	PIN_SEMAPHORE ready;
