@@ -25,6 +25,11 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include "pin.H"
+#undef LOG
+#undef ASSERT
+#define WINDOWS_H_IN_NAMESPACE
+
 #ifdef COMPRESS_STARTUP_DATA_BZ2
 #include <bzlib.h>
 #endif
@@ -280,16 +285,40 @@ class BZip2Decompressor : public StartupDataDecompressor {
 };
 #endif
 
+#include <iostream>
+#include <string>
+KNOB<string> KnobLogFile(KNOB_MODE_WRITEONCE, "pintool", "l", "", "logfile");
+KNOB<string> KnobOutputFile(KNOB_MODE_WRITEONCE, "pintool", "o", "", "outputfile");
 
 int main(int argc, char** argv) {
   // By default, log code create information in the snapshot.
   i::FLAG_log_code = true;
+  string flags = "--log-snapshot-positions ";
+
+  if (PIN_Init(argc, argv)) {
+	  cerr << "PIN initialization failed" << endl;
+	  return -1;
+  }
+
+  //Must be executed before ANY v8 function
+  i::InitializeIsolation();
+
+  //Initialize default isolate
+  V8::Initialize();
+
+  if (KnobLogFile.NumberOfValues() > 0) {
+	flags+="--logfile ";
+	flags+=KnobLogFile.Value();
+  }
 
   // Print the usage if an error occurs when parsing the command line
   // flags or if the help flag is set.
-  int result = i::FlagList::SetFlagsFromCommandLine(&argc, argv, true);
-  if (result > 0 || argc != 2 || i::FLAG_help) {
-    ::printf("Usage: %s [flag] ... outfile\n", argv[0]);
+  int result = i::FlagList::SetFlagsFromString(flags.c_str(), flags.length());
+  cerr << "v8 flags:" << flags << endl;
+  cerr << "output file:" << KnobOutputFile.Value() << endl;
+
+  if (result > 0 || i::FLAG_help || KnobOutputFile.NumberOfValues() < 1) {
+    ::printf("Usage: mksnapshot.bat [flag] ... outfile\n");
     i::FlagList::PrintHelp();
     return !i::FLAG_help;
   }
@@ -325,7 +354,7 @@ int main(int argc, char** argv) {
   HEAP->CollectAllGarbage(i::Heap::kNoGCFlags, "mksnapshot");
   i::Object* raw_context = *(v8::Utils::OpenHandle(*context));
   context.Dispose();
-  CppByteSink sink(argv[1]);
+  CppByteSink sink(KnobOutputFile.Value().c_str());
   // This results in a somewhat smaller snapshot, probably because it gets rid
   // of some things that are cached between garbage collections.
   i::StartupSerializer ser(&sink);
@@ -355,4 +384,22 @@ int main(int argc, char** argv) {
       partial_ser.CurrentAllocationAddress(i::CELL_SPACE),
       partial_ser.CurrentAllocationAddress(i::LO_SPACE));
   return 0;
+}
+
+
+WINDOWS::HANDLE WINAPI MyCreateThread(
+			WINDOWS::LPSECURITY_ATTRIBUTES lpThreadAttributes,
+			WINDOWS::SIZE_T dwStackSize,
+			ROOT_THREAD_FUNC lpStartAddress,
+			WINDOWS::LPVOID lpParameter,
+			WINDOWS::DWORD dwCreationFlags,
+			WINDOWS::LPDWORD lpThreadId
+	  )
+{
+	THREADID ret = (PIN_SpawnInternalThread((lpStartAddress),
+					lpParameter,
+					dwStackSize,
+					reinterpret_cast<PIN_THREAD_UID *>(lpThreadId)));
+
+	return (ret == INVALID_THREADID) ? 0 : reinterpret_cast<WINDOWS::HANDLE>(ret);
 }

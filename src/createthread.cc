@@ -32,6 +32,10 @@ WINDOWS::BOOL WINAPI DllMain(WINDOWS::HANDLE hinstDLL, WINDOWS::DWORD dwReason, 
 	{
 		//XXX: maintain updated with the name of the pintool DLL
 		WINDOWS::HMODULE v8 = WINDOWS::GetModuleHandle("pet.dll");
+
+		//XXX: support for the mksnapshot tool
+		if (!v8)
+			v8 = WINDOWS::GetModuleHandle("mksnapshot.dll");
 		if (!v8)
 		  return 0;
 

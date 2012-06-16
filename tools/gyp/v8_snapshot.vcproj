@@ -188,7 +188,7 @@
 				Name="_excluded_files"
 				>
 				<File
-					RelativePath="$(OutDir)\mksnapshot.exe"
+					RelativePath="$(OutDir)\mksnapshot.dll"
 					>
 					<FileConfiguration
 						Name="Debug|Win32"
@@ -196,8 +196,8 @@
 						<Tool
 							Name="VCCustomBuildTool"
 							Description="run_mksnapshot"
-							CommandLine="call &quot;$(ProjectDir)..\..\third_party\cygwin\setup_env.bat&quot; &amp;&amp; set CYGWIN=nontsec&amp;&amp; set INTDIR=$(IntDir)&amp;&amp; set OUTDIR=$(OutDir)&amp;&amp; bash -c &quot;\&quot;`cygpath -m \&quot;${OUTDIR}\&quot;`/mksnapshot.exe\&quot; \&quot;--log-snapshot-positions\&quot; \&quot;--logfile\&quot; \&quot;`cygpath -m \&quot;${INTDIR}\&quot;`/snapshot.log\&quot; \&quot;`cygpath -m \&quot;${INTDIR}\&quot;`/snapshot.cc\&quot;&quot;&#x0D;&#x0A;"
-							AdditionalDependencies="$(OutDir)\mksnapshot.exe"
+							CommandLine="call &quot;$(ProjectDir)..\..\third_party\cygwin\setup_env.bat&quot; &amp;&amp; set CYGWIN=nontsec&amp;&amp; set INTDIR=$(IntDir)&amp;&amp; set OUTDIR=$(OutDir)&amp;&amp; bash -c &quot;\&quot;`cygpath -m \&quot;${OUTDIR}\&quot;`/../mksnapshot.bat\&quot; \&quot;`cygpath -m \&quot;${INTDIR}\&quot;`/snapshot.log\&quot; \&quot;`cygpath -m \&quot;${INTDIR}\&quot;`/snapshot.cc\&quot;&quot;&#x0D;&#x0A;"
+							AdditionalDependencies="$(OutDir)\mksnapshot.dll"
 							Outputs="$(IntDir)\snapshot.cc"
 						/>
 					</FileConfiguration>
@@ -207,8 +207,8 @@
 						<Tool
 							Name="VCCustomBuildTool"
 							Description="run_mksnapshot"
-							CommandLine="call &quot;$(ProjectDir)..\..\third_party\cygwin\setup_env.bat&quot; &amp;&amp; set CYGWIN=nontsec&amp;&amp; set INTDIR=$(IntDir)&amp;&amp; set OUTDIR=$(OutDir)&amp;&amp; bash -c &quot;\&quot;`cygpath -m \&quot;${OUTDIR}\&quot;`/mksnapshot.exe\&quot; \&quot;--log-snapshot-positions\&quot; \&quot;--logfile\&quot; \&quot;`cygpath -m \&quot;${INTDIR}\&quot;`/snapshot.log\&quot; \&quot;`cygpath -m \&quot;${INTDIR}\&quot;`/snapshot.cc\&quot;&quot;&#x0D;&#x0A;"
-							AdditionalDependencies="$(OutDir)\mksnapshot.exe"
+							CommandLine="call &quot;$(ProjectDir)..\..\third_party\cygwin\setup_env.bat&quot; &amp;&amp; set CYGWIN=nontsec&amp;&amp; set INTDIR=$(IntDir)&amp;&amp; set OUTDIR=$(OutDir)&amp;&amp; bash -c &quot;\&quot;`cygpath -m \&quot;${OUTDIR}\&quot;`/../mksnapshot.bat\&quot; \&quot;`cygpath -m \&quot;${INTDIR}\&quot;`/snapshot.log\&quot; \&quot;`cygpath -m \&quot;${INTDIR}\&quot;`/snapshot.cc\&quot;&quot;&#x0D;&#x0A;"
+							AdditionalDependencies="$(OutDir)\mksnapshot.dll"
 							Outputs="$(IntDir)\snapshot.cc"
 						/>
 					</FileConfiguration>
