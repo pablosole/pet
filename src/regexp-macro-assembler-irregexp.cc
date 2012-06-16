@@ -38,8 +38,10 @@ namespace internal {
 
 #ifdef V8_INTERPRETED_REGEXP
 
-RegExpMacroAssemblerIrregexp::RegExpMacroAssemblerIrregexp(Vector<byte> buffer)
-    : buffer_(buffer),
+RegExpMacroAssemblerIrregexp::RegExpMacroAssemblerIrregexp(Vector<byte> buffer,
+                                                           Zone* zone)
+    : RegExpMacroAssembler(zone),
+      buffer_(buffer),
       pc_(0),
       own_buffer_(false),
       advance_current_end_(kInvalidPC) {
@@ -203,8 +205,9 @@ void RegExpMacroAssemblerIrregexp::PushBacktrack(Label* l) {
 }
 
 
-void RegExpMacroAssemblerIrregexp::Succeed() {
+bool RegExpMacroAssemblerIrregexp::Succeed() {
   Emit(BC_SUCCEED, 0);
+  return false;  // Restart matching for global regexp not supported.
 }
 
 
@@ -403,17 +406,6 @@ void RegExpMacroAssemblerIrregexp::CheckNotBackReferenceIgnoreCase(
   ASSERT(start_reg >= 0);
   ASSERT(start_reg <= kMaxRegister);
   Emit(BC_CHECK_NOT_BACK_REF_NO_CASE, start_reg);
-  EmitOrLink(on_not_equal);
-}
-
-
-void RegExpMacroAssemblerIrregexp::CheckNotRegistersEqual(int reg1,
-                                                          int reg2,
-                                                          Label* on_not_equal) {
-  ASSERT(reg1 >= 0);
-  ASSERT(reg1 <= kMaxRegister);
-  Emit(BC_CHECK_NOT_REGS_EQUAL, reg1);
-  Emit32(reg2);
   EmitOrLink(on_not_equal);
 }
 

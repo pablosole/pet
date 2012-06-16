@@ -1,4 +1,4 @@
-// Copyright 2008 the V8 project authors. All rights reserved.
+// Copyright 2012 the V8 project authors. All rights reserved.
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
@@ -35,6 +35,7 @@ namespace internal {
 
 RegExpMacroAssemblerTracer::RegExpMacroAssemblerTracer(
     RegExpMacroAssembler* assembler) :
+  RegExpMacroAssembler(assembler->zone()),
   assembler_(assembler) {
   unsigned int type = assembler->Implementation();
   ASSERT(type < 5);
@@ -102,14 +103,15 @@ void RegExpMacroAssemblerTracer::PushBacktrack(Label* label) {
 }
 
 
-void RegExpMacroAssemblerTracer::Succeed() {
-  PrintF(" Succeed();\n");
-  assembler_->Succeed();
+bool RegExpMacroAssemblerTracer::Succeed() {
+  bool restart = assembler_->Succeed();
+  PrintF(" Succeed();%s\n", restart ? " [restart for global match]" : "");
+  return restart;
 }
 
 
 void RegExpMacroAssemblerTracer::Fail() {
-  PrintF(" Fail();\n");
+  PrintF(" Fail();");
   assembler_->Fail();
 }
 
@@ -378,17 +380,6 @@ void RegExpMacroAssemblerTracer::CheckNotBackReferenceIgnoreCase(
   PrintF(" CheckNotBackReferenceIgnoreCase(register=%d, label[%08x]);\n",
          start_reg, LabelToInt(on_no_match));
   assembler_->CheckNotBackReferenceIgnoreCase(start_reg, on_no_match);
-}
-
-
-void RegExpMacroAssemblerTracer::CheckNotRegistersEqual(int reg1,
-                                                        int reg2,
-                                                        Label* on_not_equal) {
-  PrintF(" CheckNotRegistersEqual(reg1=%d, reg2=%d, label[%08x]);\n",
-         reg1,
-         reg2,
-         LabelToInt(on_not_equal));
-  assembler_->CheckNotRegistersEqual(reg1, reg2, on_not_equal);
 }
 
 

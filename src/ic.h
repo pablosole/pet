@@ -378,10 +378,16 @@ class KeyedIC: public IC {
     STORE_TRANSITION_SMI_TO_OBJECT,
     STORE_TRANSITION_SMI_TO_DOUBLE,
     STORE_TRANSITION_DOUBLE_TO_OBJECT,
+    STORE_TRANSITION_HOLEY_SMI_TO_OBJECT,
+    STORE_TRANSITION_HOLEY_SMI_TO_DOUBLE,
+    STORE_TRANSITION_HOLEY_DOUBLE_TO_OBJECT,
     STORE_AND_GROW_NO_TRANSITION,
     STORE_AND_GROW_TRANSITION_SMI_TO_OBJECT,
     STORE_AND_GROW_TRANSITION_SMI_TO_DOUBLE,
-    STORE_AND_GROW_TRANSITION_DOUBLE_TO_OBJECT
+    STORE_AND_GROW_TRANSITION_DOUBLE_TO_OBJECT,
+    STORE_AND_GROW_TRANSITION_HOLEY_SMI_TO_OBJECT,
+    STORE_AND_GROW_TRANSITION_HOLEY_SMI_TO_DOUBLE,
+    STORE_AND_GROW_TRANSITION_HOLEY_DOUBLE_TO_OBJECT
   };
 
   static const int kGrowICDelta = STORE_AND_GROW_NO_TRANSITION -
@@ -445,7 +451,7 @@ class KeyedIC: public IC {
  private:
   void GetReceiverMapsForStub(Handle<Code> stub, MapHandleList* result);
 
-  Handle<Code> ComputeMonomorphicStub(Handle<JSObject> receiver,
+  Handle<Code> ComputeMonomorphicStub(Handle<Map> receiver_map,
                                       StubKind stub_kind,
                                       StrictModeFlag strict_mode,
                                       Handle<Code> default_stub);
@@ -460,6 +466,12 @@ class KeyedIC: public IC {
 
   static bool IsGrowStubKind(StubKind stub_kind) {
     return stub_kind >= STORE_AND_GROW_NO_TRANSITION;
+  }
+
+  static StubKind GetNoTransitionStubKind(StubKind stub_kind) {
+    if (!IsTransitionStubKind(stub_kind)) return stub_kind;
+    if (IsGrowStubKind(stub_kind)) return STORE_AND_GROW_NO_TRANSITION;
+    return STORE_NO_TRANSITION;
   }
 };
 

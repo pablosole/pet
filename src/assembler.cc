@@ -149,7 +149,7 @@ int Label::pos() const {
 // an iteration.
 //
 // The encoding relies on the fact that there are fewer than 14
-// different non-compactly encoded relocation modes.
+// different relocation modes using standard non-compact encoding.
 //
 // The first byte of a relocation record has a tag in its low 2 bits:
 // Here are the record schemes, depending on the low tag and optional higher
@@ -181,7 +181,9 @@ int Label::pos() const {
 //                              00 [4 bit middle_tag] 11 followed by
 //                              00 [6 bit pc delta]
 //
-//      1101: not used (would allow one more relocation mode to be added)
+//      1101: constant pool. Used on ARM only for now.
+//        The format is:       11 1101 11
+//                             signed int (size of the constant pool).
 //      1110: long_data_record
 //        The format is:       [2-bit data_type_tag] 1110 11
 //                             signed intptr_t, lowest byte written first
@@ -202,7 +204,7 @@ int Label::pos() const {
 //                dropped, and last non-zero chunk tagged with 1.)
 
 
-const int kMaxRelocModes = 14;
+const int kMaxStandardNonCompactModes = 14;
 
 const int kTagBits = 2;
 const int kTagMask = (1 << kTagBits) - 1;
@@ -235,6 +237,9 @@ const int kCodeWithIdTag = 0;
 const int kNonstatementPositionTag = 1;
 const int kStatementPositionTag = 2;
 const int kCommentTag = 3;
+
+const int kConstPoolExtraTag = kPCJumpExtraTag - 2;
+const int kConstPoolTag = 3;
 
 
 uint32_t RelocInfoWriter::WriteVariableLengthPCJump(uint32_t pc_delta) {
@@ -293,6 +298,15 @@ void RelocInfoWriter::WriteExtraTaggedIntData(int data_delta, int top_tag) {
   }
 }
 
+void RelocInfoWriter::WriteExtraTaggedConstPoolData(int data) {
+  WriteExtraTag(kConstPoolExtraTag, kConstPoolTag);
+  for (int i = 0; i < kIntSize; i++) {
+    *--pos_ = static_cast<byte>(data);
+    // Signed right shift is arithmetic shift.  Tested in test-utils.cc.
+    data = data >> kBitsPerByte;
+  }
+}
+
 void RelocInfoWriter::WriteExtraTaggedData(intptr_t data_delta, int top_tag) {
   WriteExtraTag(kDataJumpExtraTag, top_tag);
   for (int i = 0; i < kIntptrSize; i++) {
@@ -308,8 +322,8 @@ void RelocInfoWriter::Write(const RelocInfo* rinfo) {
   byte* begin_pos = pos_;
 #endif
   ASSERT(rinfo->pc() - last_pc_ >= 0);
-  ASSERT(RelocInfo::NUMBER_OF_MODES - RelocInfo::LAST_COMPACT_ENUM <=
-         kMaxRelocModes);
+  ASSERT(RelocInfo::LAST_STANDARD_NONCOMPACT_ENUM - RelocInfo::LAST_COMPACT_ENUM
+         <= kMaxStandardNonCompactModes);
   // Use unsigned delta-encoding for pc.
   uint32_t pc_delta = static_cast<uint32_t>(rinfo->pc() - last_pc_);
   RelocInfo::Mode rmode = rinfo->rmode();
@@ -355,6 +369,9 @@ void RelocInfoWriter::Write(const RelocInfo* rinfo) {
     WriteExtraTaggedPC(pc_delta, kPCJumpExtraTag);
     WriteExtraTaggedData(rinfo->data(), kCommentTag);
     ASSERT(begin_pos - pos_ >= RelocInfo::kMinRelocCommentSize);
+  } else if (RelocInfo::IsConstPool(rmode)) {
+      WriteExtraTaggedPC(pc_delta, kPCJumpExtraTag);
+      WriteExtraTaggedConstPoolData(rinfo->data());
   } else {
     ASSERT(rmode > RelocInfo::LAST_COMPACT_ENUM);
     int saved_mode = rmode - RelocInfo::LAST_COMPACT_ENUM;
@@ -402,6 +419,15 @@ void RelocIterator::AdvanceReadId() {
   }
   last_id_ += x;
   rinfo_.data_ = last_id_;
+}
+
+
+void RelocIterator::AdvanceReadConstPoolData() {
+  int x = 0;
+  for (int i = 0; i < kIntSize; i++) {
+    x |= static_cast<int>(*--pos_) << i * kBitsPerByte;
+  }
+  rinfo_.data_ = x;
 }
 
 
@@ -508,8 +534,7 @@ void RelocIterator::next() {
       ASSERT(tag == kDefaultTag);
       int extra_tag = GetExtraTag();
       if (extra_tag == kPCJumpExtraTag) {
-        int top_tag = GetTopTag();
-        if (top_tag == kVariableLengthPCJumpTopTag) {
+        if (GetTopTag() == kVariableLengthPCJumpTopTag) {
           AdvanceReadVariableLengthPCJump();
         } else {
           AdvanceReadPC();
@@ -539,6 +564,13 @@ void RelocIterator::next() {
           }
           Advance(kIntptrSize);
         }
+      } else if ((extra_tag == kConstPoolExtraTag) &&
+                 (GetTopTag() == kConstPoolTag)) {
+        if (SetMode(RelocInfo::CONST_POOL)) {
+          AdvanceReadConstPoolData();
+          return;
+        }
+        Advance(kIntSize);
       } else {
         AdvanceReadPC();
         int rmode = extra_tag + RelocInfo::LAST_COMPACT_ENUM;
@@ -621,6 +653,8 @@ const char* RelocInfo::RelocModeName(RelocInfo::Mode rmode) {
       return "external reference";
     case RelocInfo::INTERNAL_REFERENCE:
       return "internal reference";
+    case RelocInfo::CONST_POOL:
+      return "constant pool";
     case RelocInfo::DEBUG_BREAK_SLOT:
 #ifndef ENABLE_DEBUGGER_SUPPORT
       UNREACHABLE();
@@ -706,6 +740,7 @@ void RelocInfo::Verify() {
     case STATEMENT_POSITION:
     case EXTERNAL_REFERENCE:
     case INTERNAL_REFERENCE:
+    case CONST_POOL:
     case DEBUG_BREAK_SLOT:
     case NONE:
       break;
@@ -963,6 +998,24 @@ ExternalReference ExternalReference::scheduled_exception_address(
 }
 
 
+ExternalReference ExternalReference::address_of_pending_message_obj(
+    Isolate* isolate) {
+  return ExternalReference(isolate->pending_message_obj_address());
+}
+
+
+ExternalReference ExternalReference::address_of_has_pending_message(
+    Isolate* isolate) {
+  return ExternalReference(isolate->has_pending_message_address());
+}
+
+
+ExternalReference ExternalReference::address_of_pending_message_script(
+    Isolate* isolate) {
+  return ExternalReference(isolate->pending_message_script_address());
+}
+
+
 ExternalReference ExternalReference::address_of_min_int() {
   return ExternalReference(reinterpret_cast<void*>(&double_constants.min_int));
 }
@@ -1138,6 +1191,12 @@ ExternalReference ExternalReference::math_log_double_function(
   return ExternalReference(Redirect(isolate,
                                     FUNCTION_ADDR(math_log_double),
                                     BUILTIN_FP_CALL));
+}
+
+
+ExternalReference ExternalReference::page_flags(Page* page) {
+  return ExternalReference(reinterpret_cast<Address>(page) +
+                           MemoryChunk::kFlagsOffset);
 }
 
 

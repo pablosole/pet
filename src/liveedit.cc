@@ -825,7 +825,8 @@ class FunctionInfoListener {
 
   // Saves full information about a function: its code, its scope info
   // and a SharedFunctionInfo object.
-  void FunctionInfo(Handle<SharedFunctionInfo> shared, Scope* scope) {
+  void FunctionInfo(Handle<SharedFunctionInfo> shared, Scope* scope,
+                    Zone* zone) {
     if (!shared->IsSharedFunctionInfo()) {
       return;
     }
@@ -836,14 +837,14 @@ class FunctionInfoListener {
         Handle<Object>(shared->scope_info()));
     info.SetSharedFunctionInfo(shared);
 
-    Handle<Object> scope_info_list(SerializeFunctionScope(scope));
+    Handle<Object> scope_info_list(SerializeFunctionScope(scope, zone));
     info.SetOuterScopeInfo(scope_info_list);
   }
 
   Handle<JSArray> GetResult() { return result_; }
 
  private:
-  Object* SerializeFunctionScope(Scope* scope) {
+  Object* SerializeFunctionScope(Scope* scope, Zone* zone) {
     HandleScope handle_scope;
 
     Handle<JSArray> scope_info_list = FACTORY->NewJSArray(10);
@@ -857,8 +858,8 @@ class FunctionInfoListener {
       return HEAP->undefined_value();
     }
     do {
-      ZoneList<Variable*> stack_list(outer_scope->StackLocalCount());
-      ZoneList<Variable*> context_list(outer_scope->ContextLocalCount());
+      ZoneList<Variable*> stack_list(outer_scope->StackLocalCount(), zone);
+      ZoneList<Variable*> context_list(outer_scope->ContextLocalCount(), zone);
       outer_scope->CollectStackAndContextLocals(&stack_list, &context_list);
       context_list.Sort(&Variable::CompareIndex);
 
@@ -927,28 +928,32 @@ void LiveEdit::WrapSharedFunctionInfos(Handle<JSArray> array) {
 // It works in context of ZoneScope.
 class ReferenceCollectorVisitor : public ObjectVisitor {
  public:
-  explicit ReferenceCollectorVisitor(Code* original)
-    : original_(original), rvalues_(10), reloc_infos_(10), code_entries_(10) {
+  ReferenceCollectorVisitor(Code* original, Zone* zone)
+      : original_(original),
+        rvalues_(10, zone),
+        reloc_infos_(10, zone),
+        code_entries_(10, zone),
+        zone_(zone) {
   }
 
   virtual void VisitPointers(Object** start, Object** end) {
     for (Object** p = start; p < end; p++) {
       if (*p == original_) {
-        rvalues_.Add(p);
+        rvalues_.Add(p, zone_);
       }
     }
   }
 
   virtual void VisitCodeEntry(Address entry) {
     if (Code::GetObjectFromEntryAddress(entry) == original_) {
-      code_entries_.Add(entry);
+      code_entries_.Add(entry, zone_);
     }
   }
 
   virtual void VisitCodeTarget(RelocInfo* rinfo) {
     if (RelocInfo::IsCodeTarget(rinfo->rmode()) &&
         Code::GetCodeFromTargetAddress(rinfo->target_address()) == original_) {
-      reloc_infos_.Add(*rinfo);
+      reloc_infos_.Add(*rinfo, zone_);
     }
   }
 
@@ -977,6 +982,7 @@ class ReferenceCollectorVisitor : public ObjectVisitor {
   ZoneList<Object**> rvalues_;
   ZoneList<RelocInfo> reloc_infos_;
   ZoneList<Address> code_entries_;
+  Zone* zone_;
 };
 
 
@@ -990,7 +996,7 @@ static void ReplaceCodeObject(Code* original, Code* substitution) {
   // A zone scope for ReferenceCollectorVisitor.
   ZoneScope scope(Isolate::Current(), DELETE_ON_EXIT);
 
-  ReferenceCollectorVisitor visitor(original);
+  ReferenceCollectorVisitor visitor(original, Isolate::Current()->zone());
 
   // Iterate over all roots. Stack frames may have pointer into original code,
   // so temporary replace the pointers with offset numbers
@@ -1589,16 +1595,36 @@ static bool IsDropableFrame(StackFrame* frame) {
   return !frame->is_exit();
 }
 
-// Fills result array with statuses of functions. Modifies the stack
-// removing all listed function if possible and if do_drop is true.
-static const char* DropActivationsInActiveThread(
-    Handle<JSArray> shared_info_array, Handle<JSArray> result, bool do_drop) {
+
+// Describes a set of call frames that execute any of listed functions.
+// Finding no such frames does not mean error.
+class MultipleFunctionTarget {
+ public:
+  MultipleFunctionTarget(Handle<JSArray> shared_info_array,
+      Handle<JSArray> result)
+      : m_shared_info_array(shared_info_array),
+        m_result(result) {}
+  bool MatchActivation(StackFrame* frame,
+      LiveEdit::FunctionPatchabilityStatus status) {
+    return CheckActivation(m_shared_info_array, m_result, frame, status);
+  }
+  const char* GetNotFoundMessage() {
+    return NULL;
+  }
+ private:
+  Handle<JSArray> m_shared_info_array;
+  Handle<JSArray> m_result;
+};
+
+// Drops all call frame matched by target and all frames above them.
+template<typename TARGET>
+static const char* DropActivationsInActiveThreadImpl(
+    TARGET& target, bool do_drop, Zone* zone) {
   Isolate* isolate = Isolate::Current();
   Debug* debug = isolate->debug();
   ZoneScope scope(isolate, DELETE_ON_EXIT);
-  Vector<StackFrame*> frames = CreateStackMap();
+  Vector<StackFrame*> frames = CreateStackMap(zone);
 
-  int array_len = Smi::cast(shared_info_array->length())->value();
 
   int top_frame_index = -1;
   int frame_index = 0;
@@ -1608,8 +1634,8 @@ static const char* DropActivationsInActiveThread(
       top_frame_index = frame_index;
       break;
     }
-    if (CheckActivation(shared_info_array, result, frame,
-                        LiveEdit::FUNCTION_BLOCKED_UNDER_NATIVE_CODE)) {
+    if (target.MatchActivation(
+            frame, LiveEdit::FUNCTION_BLOCKED_UNDER_NATIVE_CODE)) {
       // We are still above break_frame. It is not a target frame,
       // it is a problem.
       return "Debugger mark-up on stack is not found";
@@ -1618,7 +1644,7 @@ static const char* DropActivationsInActiveThread(
 
   if (top_frame_index == -1) {
     // We haven't found break frame, but no function is blocking us anyway.
-    return NULL;
+    return target.GetNotFoundMessage();
   }
 
   bool target_frame_found = false;
@@ -1631,8 +1657,8 @@ static const char* DropActivationsInActiveThread(
       c_code_found = true;
       break;
     }
-    if (CheckActivation(shared_info_array, result, frame,
-                        LiveEdit::FUNCTION_BLOCKED_ON_ACTIVE_STACK)) {
+    if (target.MatchActivation(
+            frame, LiveEdit::FUNCTION_BLOCKED_ON_ACTIVE_STACK)) {
       target_frame_found = true;
       bottom_js_frame_index = frame_index;
     }
@@ -1644,8 +1670,8 @@ static const char* DropActivationsInActiveThread(
     for (; frame_index < frames.length(); frame_index++) {
       StackFrame* frame = frames[frame_index];
       if (frame->is_java_script()) {
-        if (CheckActivation(shared_info_array, result, frame,
-                            LiveEdit::FUNCTION_BLOCKED_UNDER_NATIVE_CODE)) {
+        if (target.MatchActivation(
+                frame, LiveEdit::FUNCTION_BLOCKED_UNDER_NATIVE_CODE)) {
           // Cannot drop frame under C frames.
           return NULL;
         }
@@ -1660,7 +1686,7 @@ static const char* DropActivationsInActiveThread(
 
   if (!target_frame_found) {
     // Nothing to drop.
-    return NULL;
+    return target.GetNotFoundMessage();
   }
 
   Debug::FrameDropMode drop_mode = Debug::FRAMES_UNTOUCHED;
@@ -1683,6 +1709,23 @@ static const char* DropActivationsInActiveThread(
   }
   debug->FramesHaveBeenDropped(new_id, drop_mode,
                                restarter_frame_function_pointer);
+  return NULL;
+}
+
+// Fills result array with statuses of functions. Modifies the stack
+// removing all listed function if possible and if do_drop is true.
+static const char* DropActivationsInActiveThread(
+    Handle<JSArray> shared_info_array, Handle<JSArray> result, bool do_drop,
+    Zone* zone) {
+  MultipleFunctionTarget target(shared_info_array, result);
+
+  const char* message =
+      DropActivationsInActiveThreadImpl(target, do_drop, zone);
+  if (message) {
+    return message;
+  }
+
+  int array_len = Smi::cast(shared_info_array->length())->value();
 
   // Replace "blocked on active" with "replaced on active" status.
   for (int i = 0; i < array_len; i++) {
@@ -1723,7 +1766,7 @@ class InactiveThreadActivationsChecker : public ThreadVisitor {
 
 
 Handle<JSArray> LiveEdit::CheckAndDropActivations(
-    Handle<JSArray> shared_info_array, bool do_drop) {
+    Handle<JSArray> shared_info_array, bool do_drop, Zone* zone) {
   int len = Smi::cast(shared_info_array->length())->value();
 
   Handle<JSArray> result = FACTORY->NewJSArray(len);
@@ -1748,7 +1791,7 @@ Handle<JSArray> LiveEdit::CheckAndDropActivations(
 
   // Try to drop activations from the current stack.
   const char* error_message =
-      DropActivationsInActiveThread(shared_info_array, result, do_drop);
+      DropActivationsInActiveThread(shared_info_array, result, do_drop, zone);
   if (error_message != NULL) {
     // Add error message as an array extra element.
     Vector<const char> vector_message(error_message, StrLength(error_message));
@@ -1756,6 +1799,41 @@ Handle<JSArray> LiveEdit::CheckAndDropActivations(
     SetElementNonStrict(result, len, str);
   }
   return result;
+}
+
+
+// Describes a single callframe a target. Not finding this frame
+// means an error.
+class SingleFrameTarget {
+ public:
+  explicit SingleFrameTarget(JavaScriptFrame* frame) : m_frame(frame) {}
+
+  bool MatchActivation(StackFrame* frame,
+      LiveEdit::FunctionPatchabilityStatus status) {
+    if (frame->fp() == m_frame->fp()) {
+      m_saved_status = status;
+      return true;
+    }
+    return false;
+  }
+  const char* GetNotFoundMessage() {
+    return "Failed to found requested frame";
+  }
+  LiveEdit::FunctionPatchabilityStatus saved_status() {
+    return m_saved_status;
+  }
+ private:
+  JavaScriptFrame* m_frame;
+  LiveEdit::FunctionPatchabilityStatus m_saved_status;
+};
+
+
+// Finds a drops required frame and all frames above.
+// Returns error message or NULL.
+const char* LiveEdit::RestartFrame(JavaScriptFrame* frame, Zone* zone) {
+  SingleFrameTarget target(frame);
+
+  return DropActivationsInActiveThreadImpl(target, true, zone);
 }
 
 
@@ -1776,9 +1854,11 @@ LiveEditFunctionTracker::~LiveEditFunctionTracker() {
 
 
 void LiveEditFunctionTracker::RecordFunctionInfo(
-    Handle<SharedFunctionInfo> info, FunctionLiteral* lit) {
+    Handle<SharedFunctionInfo> info, FunctionLiteral* lit,
+    Zone* zone) {
   if (isolate_->active_function_info_listener() != NULL) {
-    isolate_->active_function_info_listener()->FunctionInfo(info, lit->scope());
+    isolate_->active_function_info_listener()->FunctionInfo(info, lit->scope(),
+                                                            zone);
   }
 }
 

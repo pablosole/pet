@@ -333,8 +333,11 @@ class LGap: public LTemplateInstruction<0, 0, 0> {
     LAST_INNER_POSITION = AFTER
   };
 
-  LParallelMove* GetOrCreateParallelMove(InnerPosition pos)  {
-    if (parallel_moves_[pos] == NULL) parallel_moves_[pos] = new LParallelMove;
+  LParallelMove* GetOrCreateParallelMove(InnerPosition pos,
+                                         Zone* zone)  {
+    if (parallel_moves_[pos] == NULL) {
+      parallel_moves_[pos] = new(zone) LParallelMove(zone);
+    }
     return parallel_moves_[pos];
   }
 
@@ -1199,6 +1202,7 @@ class LLoadKeyedFastElement: public LTemplateInstruction<1, 2, 0> {
 
   LOperand* elements() { return inputs_[0]; }
   LOperand* key() { return inputs_[1]; }
+  uint32_t additional_index() const { return hydrogen()->index_offset(); }
 };
 
 
@@ -1215,13 +1219,13 @@ class LLoadKeyedFastDoubleElement: public LTemplateInstruction<1, 2, 0> {
 
   LOperand* elements() { return inputs_[0]; }
   LOperand* key() { return inputs_[1]; }
+  uint32_t additional_index() const { return hydrogen()->index_offset(); }
 };
 
 
 class LLoadKeyedSpecializedArrayElement: public LTemplateInstruction<1, 2, 0> {
  public:
-  LLoadKeyedSpecializedArrayElement(LOperand* external_pointer,
-                                    LOperand* key) {
+  LLoadKeyedSpecializedArrayElement(LOperand* external_pointer, LOperand* key) {
     inputs_[0] = external_pointer;
     inputs_[1] = key;
   }
@@ -1235,6 +1239,7 @@ class LLoadKeyedSpecializedArrayElement: public LTemplateInstruction<1, 2, 0> {
   ElementsKind elements_kind() const {
     return hydrogen()->elements_kind();
   }
+  uint32_t additional_index() const { return hydrogen()->index_offset(); }
 };
 
 
@@ -1692,6 +1697,7 @@ class LStoreKeyedFastElement: public LTemplateInstruction<0, 3, 0> {
   LOperand* object() { return inputs_[0]; }
   LOperand* key() { return inputs_[1]; }
   LOperand* value() { return inputs_[2]; }
+  uint32_t additional_index() const { return hydrogen()->index_offset(); }
 };
 
 
@@ -1716,6 +1722,7 @@ class LStoreKeyedFastDoubleElement: public LTemplateInstruction<0, 3, 0> {
   LOperand* value() { return inputs_[2]; }
 
   bool NeedsCanonicalization() { return hydrogen()->NeedsCanonicalization(); }
+  uint32_t additional_index() const { return hydrogen()->index_offset(); }
 };
 
 
@@ -1739,6 +1746,7 @@ class LStoreKeyedSpecializedArrayElement: public LTemplateInstruction<0, 3, 0> {
   ElementsKind elements_kind() const {
     return hydrogen()->elements_kind();
   }
+  uint32_t additional_index() const { return hydrogen()->index_offset(); }
 };
 
 
@@ -2156,13 +2164,13 @@ class LLoadFieldByIndex: public LTemplateInstruction<1, 2, 0> {
 class LChunkBuilder;
 class LChunk: public ZoneObject {
  public:
-  explicit LChunk(CompilationInfo* info, HGraph* graph)
+  LChunk(CompilationInfo* info, HGraph* graph)
     : spill_slot_count_(0),
       info_(info),
       graph_(graph),
-      instructions_(32),
-      pointer_maps_(8),
-      inlined_closures_(1) { }
+      instructions_(32, graph->zone()),
+      pointer_maps_(8, graph->zone()),
+      inlined_closures_(1, graph->zone()) { }
 
   void AddInstruction(LInstruction* instruction, HBasicBlock* block);
   LConstantOperand* DefineConstantOperand(HConstant* constant);
@@ -2207,8 +2215,10 @@ class LChunk: public ZoneObject {
   }
 
   void AddInlinedClosure(Handle<JSFunction> closure) {
-    inlined_closures_.Add(closure);
+    inlined_closures_.Add(closure, zone());
   }
+
+  Zone* zone() const { return graph_->zone(); }
 
  private:
   int spill_slot_count_;
@@ -2226,7 +2236,7 @@ class LChunkBuilder BASE_EMBEDDED {
       : chunk_(NULL),
         info_(info),
         graph_(graph),
-        zone_(graph->isolate()->zone()),
+        zone_(graph->zone()),
         status_(UNUSED),
         current_instruction_(NULL),
         current_block_(NULL),

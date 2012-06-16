@@ -1,4 +1,4 @@
-// Copyright 2011 the V8 project authors. All rights reserved.
+// Copyright 2012 the V8 project authors. All rights reserved.
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
@@ -171,11 +171,11 @@ void LEnvironment::PrintTo(StringStream* stream) {
 }
 
 
-void LPointerMap::RecordPointer(LOperand* op) {
+void LPointerMap::RecordPointer(LOperand* op, Zone* zone) {
   // Do not record arguments as pointers.
   if (op->IsStackSlot() && op->index() < 0) return;
   ASSERT(!op->IsDoubleRegister() && !op->IsDoubleStackSlot());
-  pointer_operands_.Add(op);
+  pointer_operands_.Add(op, zone);
 }
 
 
@@ -192,11 +192,11 @@ void LPointerMap::RemovePointer(LOperand* op) {
 }
 
 
-void LPointerMap::RecordUntagged(LOperand* op) {
+void LPointerMap::RecordUntagged(LOperand* op, Zone* zone) {
   // Do not record arguments as pointers.
   if (op->IsStackSlot() && op->index() < 0) return;
   ASSERT(!op->IsDoubleRegister() && !op->IsDoubleStackSlot());
-  untagged_operands_.Add(op);
+  untagged_operands_.Add(op, zone);
 }
 
 
@@ -225,9 +225,12 @@ int ElementsKindToShiftSize(ElementsKind elements_kind) {
       return 2;
     case EXTERNAL_DOUBLE_ELEMENTS:
     case FAST_DOUBLE_ELEMENTS:
+    case FAST_HOLEY_DOUBLE_ELEMENTS:
       return 3;
-    case FAST_SMI_ONLY_ELEMENTS:
+    case FAST_SMI_ELEMENTS:
     case FAST_ELEMENTS:
+    case FAST_HOLEY_SMI_ELEMENTS:
+    case FAST_HOLEY_ELEMENTS:
     case DICTIONARY_ELEMENTS:
     case NON_STRICT_ARGUMENTS_ELEMENTS:
       return kPointerSizeLog2;

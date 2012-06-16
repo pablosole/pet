@@ -1451,7 +1451,7 @@ void Debug::PrepareStep(StepAction step_action, int step_count) {
     // Remember source position and frame to handle step next.
     thread_local_.last_statement_position_ =
         debug_info->code()->SourceStatementPosition(frame->pc());
-    thread_local_.last_fp_ = frame->fp();
+    thread_local_.last_fp_ = frame->UnpaddedFP();
   } else {
     // If there's restarter frame on top of the stack, just get the pointer
     // to function which is going to be restarted.
@@ -1520,7 +1520,7 @@ void Debug::PrepareStep(StepAction step_action, int step_count) {
       // propagated on the next Debug::Break.
       thread_local_.last_statement_position_ =
           debug_info->code()->SourceStatementPosition(frame->pc());
-      thread_local_.last_fp_ = frame->fp();
+      thread_local_.last_fp_ = frame->UnpaddedFP();
     }
 
     // Step in or Step in min
@@ -1555,7 +1555,7 @@ bool Debug::StepNextContinue(BreakLocationIterator* break_location_iterator,
     // Continue if we are still on the same frame and in the same statement.
     int current_statement_position =
         break_location_iterator->code()->SourceStatementPosition(frame->pc());
-    return thread_local_.last_fp_ == frame->fp() &&
+    return thread_local_.last_fp_ == frame->UnpaddedFP() &&
         thread_local_.last_statement_position_ == current_statement_position;
   }
 
@@ -1756,7 +1756,7 @@ void Debug::ClearOneShot() {
 
 void Debug::ActivateStepIn(StackFrame* frame) {
   ASSERT(!StepOutActive());
-  thread_local_.step_into_fp_ = frame->fp();
+  thread_local_.step_into_fp_ = frame->UnpaddedFP();
 }
 
 
@@ -1767,7 +1767,7 @@ void Debug::ClearStepIn() {
 
 void Debug::ActivateStepOut(StackFrame* frame) {
   ASSERT(!StepInActive());
-  thread_local_.step_out_fp_ = frame->fp();
+  thread_local_.step_out_fp_ = frame->UnpaddedFP();
 }
 
 
@@ -1784,20 +1784,19 @@ void Debug::ClearStepNext() {
 
 
 // Helper function to compile full code for debugging. This code will
-// have debug break slots and deoptimization
-// information. Deoptimization information is required in case that an
-// optimized version of this function is still activated on the
-// stack. It will also make sure that the full code is compiled with
-// the same flags as the previous version - that is flags which can
-// change the code generated. The current method of mapping from
-// already compiled full code without debug break slots to full code
-// with debug break slots depends on the generated code is otherwise
-// exactly the same.
-static bool CompileFullCodeForDebugging(Handle<SharedFunctionInfo> shared,
+// have debug break slots and deoptimization information. Deoptimization
+// information is required in case that an optimized version of this
+// function is still activated on the stack. It will also make sure that
+// the full code is compiled with the same flags as the previous version,
+// that is flags which can change the code generated. The current method
+// of mapping from already compiled full code without debug break slots
+// to full code with debug break slots depends on the generated code is
+// otherwise exactly the same.
+static bool CompileFullCodeForDebugging(Handle<JSFunction> function,
                                         Handle<Code> current_code) {
   ASSERT(!current_code->has_debug_break_slots());
 
-  CompilationInfo info(shared);
+  CompilationInfo info(function);
   info.MarkCompilingForDebugging(current_code);
   ASSERT(!info.shared_info()->is_compiled());
   ASSERT(!info.isolate()->has_pending_exception());
@@ -1809,7 +1808,7 @@ static bool CompileFullCodeForDebugging(Handle<SharedFunctionInfo> shared,
   info.isolate()->clear_pending_exception();
 #if DEBUG
   if (result) {
-    Handle<Code> new_code(shared->code());
+    Handle<Code> new_code(function->shared()->code());
     ASSERT(new_code->has_debug_break_slots());
     ASSERT(current_code->is_compiled_optimizable() ==
            new_code->is_compiled_optimizable());
@@ -1869,29 +1868,48 @@ static void RedirectActivationsToRecompiledCodeOnThread(
       continue;
     }
 
-    intptr_t delta = frame->pc() - frame_code->instruction_start();
-    int debug_break_slot_count = 0;
-    int mask = RelocInfo::ModeMask(RelocInfo::DEBUG_BREAK_SLOT);
+    // Iterate over the RelocInfo in the original code to compute the sum of the
+    // constant pools sizes. (See Assembler::CheckConstPool())
+    // Note that this is only useful for architectures using constant pools.
+    int constpool_mask = RelocInfo::ModeMask(RelocInfo::CONST_POOL);
+    int frame_const_pool_size = 0;
+    for (RelocIterator it(*frame_code, constpool_mask); !it.done(); it.next()) {
+      RelocInfo* info = it.rinfo();
+      if (info->pc() >= frame->pc()) break;
+      frame_const_pool_size += info->data();
+    }
+    intptr_t frame_offset =
+      frame->pc() - frame_code->instruction_start() - frame_const_pool_size;
+
+    // Iterate over the RelocInfo for new code to find the number of bytes
+    // generated for debug slots and constant pools.
+    int debug_break_slot_bytes = 0;
+    int new_code_const_pool_size = 0;
+    int mask = RelocInfo::ModeMask(RelocInfo::DEBUG_BREAK_SLOT) |
+               RelocInfo::ModeMask(RelocInfo::CONST_POOL);
     for (RelocIterator it(*new_code, mask); !it.done(); it.next()) {
       // Check if the pc in the new code with debug break
       // slots is before this slot.
       RelocInfo* info = it.rinfo();
-      int debug_break_slot_bytes =
-          debug_break_slot_count * Assembler::kDebugBreakSlotLength;
-      intptr_t new_delta =
-          info->pc() -
-          new_code->instruction_start() -
-          debug_break_slot_bytes;
-      if (new_delta > delta) {
+      intptr_t new_offset = info->pc() - new_code->instruction_start() -
+                            new_code_const_pool_size - debug_break_slot_bytes;
+      if (new_offset >= frame_offset) {
         break;
       }
 
-      // Passed a debug break slot in the full code with debug
-      // break slots.
-      debug_break_slot_count++;
+      if (RelocInfo::IsDebugBreakSlot(info->rmode())) {
+        debug_break_slot_bytes += Assembler::kDebugBreakSlotLength;
+      } else {
+        ASSERT(RelocInfo::IsConstPool(info->rmode()));
+        // The size of the constant pool is encoded in the data.
+        new_code_const_pool_size += info->data();
+      }
     }
-    int debug_break_slot_bytes =
-        debug_break_slot_count * Assembler::kDebugBreakSlotLength;
+
+    // Compute the equivalent pc in the new code.
+    byte* new_pc = new_code->instruction_start() + frame_offset +
+                   debug_break_slot_bytes + new_code_const_pool_size;
+
     if (FLAG_trace_deopt) {
       PrintF("Replacing code %08" V8PRIxPTR " - %08" V8PRIxPTR " (%d) "
              "with %08" V8PRIxPTR " - %08" V8PRIxPTR " (%d) "
@@ -1908,14 +1926,12 @@ static void RedirectActivationsToRecompiledCodeOnThread(
              new_code->instruction_size(),
              new_code->instruction_size(),
              reinterpret_cast<intptr_t>(frame->pc()),
-             reinterpret_cast<intptr_t>(new_code->instruction_start()) +
-             delta + debug_break_slot_bytes);
+             reinterpret_cast<intptr_t>(new_pc));
     }
 
     // Patch the return address to return into the code with
     // debug break slots.
-    frame->set_pc(
-        new_code->instruction_start() + delta + debug_break_slot_bytes);
+    frame->set_pc(new_pc);
   }
 }
 
@@ -2013,6 +2029,7 @@ void Debug::PrepareForBreakPoints() {
     // patch the return address to run in the new compiled code.
     for (int i = 0; i < active_functions.length(); i++) {
       Handle<JSFunction> function = active_functions[i];
+      Handle<SharedFunctionInfo> shared(function->shared());
 
       if (function->code()->kind() == Code::FUNCTION &&
           function->code()->has_debug_break_slots()) {
@@ -2020,7 +2037,6 @@ void Debug::PrepareForBreakPoints() {
         continue;
       }
 
-      Handle<SharedFunctionInfo> shared(function->shared());
       // If recompilation is not possible just skip it.
       if (shared->is_toplevel() ||
           !shared->allows_lazy_compilation() ||
@@ -2040,7 +2056,7 @@ void Debug::PrepareForBreakPoints() {
             isolate_->debugger()->force_debugger_active();
         isolate_->debugger()->set_force_debugger_active(true);
         ASSERT(current_code->kind() == Code::FUNCTION);
-        CompileFullCodeForDebugging(shared, current_code);
+        CompileFullCodeForDebugging(function, current_code);
         isolate_->debugger()->set_force_debugger_active(
             prev_force_debugger_active);
         if (!shared->is_compiled()) {

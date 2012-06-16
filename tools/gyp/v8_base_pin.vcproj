@@ -485,6 +485,10 @@
 						>
 					</File>
 					<File
+						RelativePath="..\..\src\elements-kind.cc"
+						>
+					</File>
+					<File
 						RelativePath="..\..\src\elements.cc"
 						>
 					</File>

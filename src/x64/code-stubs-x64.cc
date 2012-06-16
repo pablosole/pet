@@ -62,8 +62,12 @@ void ToNumberStub::Generate(MacroAssembler* masm) {
 void FastNewClosureStub::Generate(MacroAssembler* masm) {
   // Create a new closure from the given function info in new
   // space. Set the context to the current context in rsi.
+  Counters* counters = masm->isolate()->counters();
+
   Label gc;
   __ AllocateInNewSpace(JSFunction::kSize, rax, rbx, rcx, &gc, TAG_OBJECT);
+
+  __ IncrementCounter(counters->fast_new_closure_total(), 1);
 
   // Get the function info from the stack.
   __ movq(rdx, Operand(rsp, 1 * kPointerSize));
@@ -76,31 +80,108 @@ void FastNewClosureStub::Generate(MacroAssembler* masm) {
   // as the map of the allocated object.
   __ movq(rcx, Operand(rsi, Context::SlotOffset(Context::GLOBAL_INDEX)));
   __ movq(rcx, FieldOperand(rcx, GlobalObject::kGlobalContextOffset));
-  __ movq(rcx, Operand(rcx, Context::SlotOffset(map_index)));
-  __ movq(FieldOperand(rax, JSObject::kMapOffset), rcx);
+  __ movq(rbx, Operand(rcx, Context::SlotOffset(map_index)));
+  __ movq(FieldOperand(rax, JSObject::kMapOffset), rbx);
 
   // Initialize the rest of the function. We don't have to update the
   // write barrier because the allocated object is in new space.
   __ LoadRoot(rbx, Heap::kEmptyFixedArrayRootIndex);
-  __ LoadRoot(rcx, Heap::kTheHoleValueRootIndex);
+  __ LoadRoot(r8, Heap::kTheHoleValueRootIndex);
   __ LoadRoot(rdi, Heap::kUndefinedValueRootIndex);
   __ movq(FieldOperand(rax, JSObject::kPropertiesOffset), rbx);
   __ movq(FieldOperand(rax, JSObject::kElementsOffset), rbx);
-  __ movq(FieldOperand(rax, JSFunction::kPrototypeOrInitialMapOffset), rcx);
+  __ movq(FieldOperand(rax, JSFunction::kPrototypeOrInitialMapOffset), r8);
   __ movq(FieldOperand(rax, JSFunction::kSharedFunctionInfoOffset), rdx);
   __ movq(FieldOperand(rax, JSFunction::kContextOffset), rsi);
   __ movq(FieldOperand(rax, JSFunction::kLiteralsOffset), rbx);
-  __ movq(FieldOperand(rax, JSFunction::kNextFunctionLinkOffset), rdi);
 
   // Initialize the code pointer in the function to be the one
   // found in the shared function info object.
+  // But first check if there is an optimized version for our context.
+  Label check_optimized;
+  Label install_unoptimized;
+  if (FLAG_cache_optimized_code) {
+    __ movq(rbx,
+            FieldOperand(rdx, SharedFunctionInfo::kOptimizedCodeMapOffset));
+    __ testq(rbx, rbx);
+    __ j(not_zero, &check_optimized, Label::kNear);
+  }
+  __ bind(&install_unoptimized);
+  __ movq(FieldOperand(rax, JSFunction::kNextFunctionLinkOffset),
+          rdi);  // Initialize with undefined.
   __ movq(rdx, FieldOperand(rdx, SharedFunctionInfo::kCodeOffset));
   __ lea(rdx, FieldOperand(rdx, Code::kHeaderSize));
   __ movq(FieldOperand(rax, JSFunction::kCodeEntryOffset), rdx);
 
+  // Return and remove the on-stack parameter.
+  __ ret(1 * kPointerSize);
+
+  __ bind(&check_optimized);
+
+  __ IncrementCounter(counters->fast_new_closure_try_optimized(), 1);
+
+  // rcx holds global context, ebx points to fixed array of 3-element entries
+  // (global context, optimized code, literals).
+  // The optimized code map must never be empty, so check the first elements.
+  Label install_optimized;
+  // Speculatively move code object into edx.
+  __ movq(rdx, FieldOperand(rbx, FixedArray::kHeaderSize + kPointerSize));
+  __ cmpq(rcx, FieldOperand(rbx, FixedArray::kHeaderSize));
+  __ j(equal, &install_optimized);
+
+  // Iterate through the rest of map backwards. rdx holds an index.
+  Label loop;
+  Label restore;
+  __ movq(rdx, FieldOperand(rbx, FixedArray::kLengthOffset));
+  __ SmiToInteger32(rdx, rdx);
+  __ bind(&loop);
+  // Do not double check first entry.
+  __ cmpq(rdx, Immediate(SharedFunctionInfo::kEntryLength));
+  __ j(equal, &restore);
+  __ subq(rdx, Immediate(SharedFunctionInfo::kEntryLength));  // Skip an entry.
+  __ cmpq(rcx, FieldOperand(rbx,
+                            rdx,
+                            times_pointer_size,
+                            FixedArray::kHeaderSize));
+  __ j(not_equal, &loop, Label::kNear);
+  // Hit: fetch the optimized code.
+  __ movq(rdx, FieldOperand(rbx,
+                            rdx,
+                            times_pointer_size,
+                            FixedArray::kHeaderSize + 1 * kPointerSize));
+
+  __ bind(&install_optimized);
+  __ IncrementCounter(counters->fast_new_closure_install_optimized(), 1);
+
+  // TODO(fschneider): Idea: store proper code pointers in the map and either
+  // unmangle them on marking or do nothing as the whole map is discarded on
+  // major GC anyway.
+  __ lea(rdx, FieldOperand(rdx, Code::kHeaderSize));
+  __ movq(FieldOperand(rax, JSFunction::kCodeEntryOffset), rdx);
+
+  // Now link a function into a list of optimized functions.
+  __ movq(rdx, ContextOperand(rcx, Context::OPTIMIZED_FUNCTIONS_LIST));
+
+  __ movq(FieldOperand(rax, JSFunction::kNextFunctionLinkOffset), rdx);
+  // No need for write barrier as JSFunction (rax) is in the new space.
+
+  __ movq(ContextOperand(rcx, Context::OPTIMIZED_FUNCTIONS_LIST), rax);
+  // Store JSFunction (rax) into rdx before issuing write barrier as
+  // it clobbers all the registers passed.
+  __ movq(rdx, rax);
+  __ RecordWriteContextSlot(
+      rcx,
+      Context::SlotOffset(Context::OPTIMIZED_FUNCTIONS_LIST),
+      rdx,
+      rbx,
+      kDontSaveFPRegs);
 
   // Return and remove the on-stack parameter.
   __ ret(1 * kPointerSize);
+
+  __ bind(&restore);
+  __ movq(rdx, Operand(rsp, 1 * kPointerSize));
+  __ jmp(&install_unoptimized);
 
   // Create a new closure through the slower runtime call.
   __ bind(&gc);
@@ -2864,30 +2945,37 @@ void RegExpExecStub::Generate(MacroAssembler* masm) {
   __ IncrementCounter(counters->regexp_entry_native(), 1);
 
   // Isolates: note we add an additional parameter here (isolate pointer).
-  static const int kRegExpExecuteArguments = 8;
+  static const int kRegExpExecuteArguments = 9;
   int argument_slots_on_stack =
       masm->ArgumentStackSlotsForCFunctionCall(kRegExpExecuteArguments);
   __ EnterApiExitFrame(argument_slots_on_stack);
 
-  // Argument 8: Pass current isolate address.
+  // Argument 9: Pass current isolate address.
   // __ movq(Operand(rsp, (argument_slots_on_stack - 1) * kPointerSize),
   //     Immediate(ExternalReference::isolate_address()));
   __ LoadAddress(kScratchRegister, ExternalReference::isolate_address());
   __ movq(Operand(rsp, (argument_slots_on_stack - 1) * kPointerSize),
           kScratchRegister);
 
-  // Argument 7: Indicate that this is a direct call from JavaScript.
+  // Argument 8: Indicate that this is a direct call from JavaScript.
   __ movq(Operand(rsp, (argument_slots_on_stack - 2) * kPointerSize),
           Immediate(1));
 
-  // Argument 6: Start (high end) of backtracking stack memory area.
+  // Argument 7: Start (high end) of backtracking stack memory area.
   __ movq(kScratchRegister, address_of_regexp_stack_memory_address);
   __ movq(r9, Operand(kScratchRegister, 0));
   __ movq(kScratchRegister, address_of_regexp_stack_memory_size);
   __ addq(r9, Operand(kScratchRegister, 0));
-  // Argument 6 passed in r9 on Linux and on the stack on Windows.
-#ifdef _WIN64
   __ movq(Operand(rsp, (argument_slots_on_stack - 3) * kPointerSize), r9);
+
+  // Argument 6: Set the number of capture registers to zero to force global
+  // regexps to behave as non-global.  This does not affect non-global regexps.
+  // Argument 6 is passed in r9 on Linux and on the stack on Windows.
+#ifdef _WIN64
+  __ movq(Operand(rsp, (argument_slots_on_stack - 4) * kPointerSize),
+          Immediate(0));
+#else
+  __ Set(r9, 0);
 #endif
 
   // Argument 5: static offsets vector buffer.
@@ -2895,7 +2983,7 @@ void RegExpExecStub::Generate(MacroAssembler* masm) {
                  ExternalReference::address_of_static_offsets_vector(isolate));
   // Argument 5 passed in r8 on Linux and on the stack on Windows.
 #ifdef _WIN64
-  __ movq(Operand(rsp, (argument_slots_on_stack - 4) * kPointerSize), r8);
+  __ movq(Operand(rsp, (argument_slots_on_stack - 5) * kPointerSize), r8);
 #endif
 
   // First four arguments are passed in registers on both Linux and Windows.
@@ -2960,7 +3048,9 @@ void RegExpExecStub::Generate(MacroAssembler* masm) {
   // Check the result.
   Label success;
   Label exception;
-  __ cmpl(rax, Immediate(NativeRegExpMacroAssembler::SUCCESS));
+  __ cmpl(rax, Immediate(1));
+  // We expect exactly one result since we force the called regexp to behave
+  // as non-global.
   __ j(equal, &success, Label::kNear);
   __ cmpl(rax, Immediate(NativeRegExpMacroAssembler::EXCEPTION));
   __ j(equal, &exception);
@@ -5993,18 +6083,20 @@ struct AheadOfTimeWriteBarrierStubList kAheadOfTime[] = {
   // KeyedStoreStubCompiler::GenerateStoreFastElement.
   { REG(rdi), REG(rbx), REG(rcx), EMIT_REMEMBERED_SET},
   { REG(rdx), REG(rdi), REG(rbx), EMIT_REMEMBERED_SET},
-  // ElementsTransitionGenerator::GenerateSmiOnlyToObject
-  // and ElementsTransitionGenerator::GenerateSmiOnlyToObject
+  // ElementsTransitionGenerator::GenerateMapChangeElementTransition
+  // and ElementsTransitionGenerator::GenerateSmiToDouble
   // and ElementsTransitionGenerator::GenerateDoubleToObject
   { REG(rdx), REG(rbx), REG(rdi), EMIT_REMEMBERED_SET},
   { REG(rdx), REG(rbx), REG(rdi), OMIT_REMEMBERED_SET},
-  // ElementsTransitionGenerator::GenerateSmiOnlyToDouble
+  // ElementsTransitionGenerator::GenerateSmiToDouble
   // and ElementsTransitionGenerator::GenerateDoubleToObject
   { REG(rdx), REG(r11), REG(r15), EMIT_REMEMBERED_SET},
   // ElementsTransitionGenerator::GenerateDoubleToObject
   { REG(r11), REG(rax), REG(r15), EMIT_REMEMBERED_SET},
   // StoreArrayLiteralElementStub::Generate
   { REG(rbx), REG(rax), REG(rcx), EMIT_REMEMBERED_SET},
+  // FastNewClosureStub::Generate
+  { REG(rcx), REG(rdx), REG(rbx), EMIT_REMEMBERED_SET},
   // Null termination.
   { REG(no_reg), REG(no_reg), REG(no_reg), EMIT_REMEMBERED_SET}
 };
@@ -6272,9 +6364,9 @@ void StoreArrayLiteralElementStub::Generate(MacroAssembler* masm) {
 
   __ CheckFastElements(rdi, &double_elements);
 
-  // FAST_SMI_ONLY_ELEMENTS or FAST_ELEMENTS
+  // FAST_*_SMI_ELEMENTS or FAST_*_ELEMENTS
   __ JumpIfSmi(rax, &smi_element);
-  __ CheckFastSmiOnlyElements(rdi, &fast_elements);
+  __ CheckFastSmiElements(rdi, &fast_elements);
 
   // Store into the array literal requires a elements transition. Call into
   // the runtime.
@@ -6292,7 +6384,7 @@ void StoreArrayLiteralElementStub::Generate(MacroAssembler* masm) {
                  // place.
   __ TailCallRuntime(Runtime::kStoreArrayLiteralElement, 5, 1);
 
-  // Array literal has ElementsKind of FAST_ELEMENTS and value is an object.
+  // Array literal has ElementsKind of FAST_*_ELEMENTS and value is an object.
   __ bind(&fast_elements);
   __ SmiToInteger32(kScratchRegister, rcx);
   __ movq(rbx, FieldOperand(rbx, JSObject::kElementsOffset));
@@ -6306,8 +6398,8 @@ void StoreArrayLiteralElementStub::Generate(MacroAssembler* masm) {
                  OMIT_SMI_CHECK);
   __ ret(0);
 
-  // Array literal has ElementsKind of FAST_SMI_ONLY_ELEMENTS or
-  // FAST_ELEMENTS, and value is Smi.
+  // Array literal has ElementsKind of FAST_*_SMI_ELEMENTS or
+  // FAST_*_ELEMENTS, and value is Smi.
   __ bind(&smi_element);
   __ SmiToInteger32(kScratchRegister, rcx);
   __ movq(rbx, FieldOperand(rbx, JSObject::kElementsOffset));

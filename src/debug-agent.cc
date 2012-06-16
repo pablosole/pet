@@ -1,4 +1,4 @@
-// Copyright 2009 the V8 project authors. All rights reserved.
+// Copyright 2012 the V8 project authors. All rights reserved.
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
@@ -157,7 +157,9 @@ void DebuggerAgent::OnSessionClosed(DebuggerAgentSession* session) {
   ScopedLock with(session_access_);
   ASSERT(session == session_);
   if (session == session_) {
-    CloseSession();
+    session_->Shutdown();
+    delete session_;
+    session_ = NULL;
   }
 }
 
@@ -247,7 +249,7 @@ SmartArrayPointer<char> DebuggerAgentUtil::ReceiveMessage(const Socket* conn) {
     while (!(c == '\n' && prev_c == '\r')) {
       prev_c = c;
       received = conn->Receive(&c, 1);
-      if (received <= 0) {
+      if (received == 0) {
         PrintF("Error %d\n", Socket::LastError());
         return SmartArrayPointer<char>();
       }
@@ -397,7 +399,7 @@ bool DebuggerAgentUtil::SendMessage(const Socket* conn,
     uint16_t character = message[i];
     buffer_position +=
         unibrow::Utf8::Encode(buffer + buffer_position, character, previous);
-    ASSERT(buffer_position < kBufferSize);
+    ASSERT(buffer_position <= kBufferSize);
 
     // Send buffer if full or last character is encoded.
     if (kBufferSize - buffer_position <
@@ -454,7 +456,7 @@ int DebuggerAgentUtil::ReceiveAll(const Socket* conn, char* data, int len) {
   int total_received = 0;
   while (total_received < len) {
     int received = conn->Receive(data + total_received, len - total_received);
-    if (received <= 0) {
+    if (received == 0) {
       return total_received;
     }
     total_received += received;

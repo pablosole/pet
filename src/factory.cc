@@ -34,6 +34,7 @@
 #include "macro-assembler.h"
 #include "objects.h"
 #include "objects-visiting.h"
+#include "platform.h"
 #include "scopeinfo.h"
 
 namespace v8 {
@@ -114,7 +115,8 @@ Handle<ObjectHashTable> Factory::NewObjectHashTable(int at_least_space_for) {
 Handle<DescriptorArray> Factory::NewDescriptorArray(int number_of_descriptors) {
   ASSERT(0 <= number_of_descriptors);
   CALL_HEAP_FUNCTION(isolate(),
-                     DescriptorArray::Allocate(number_of_descriptors),
+                     DescriptorArray::Allocate(number_of_descriptors,
+                                               DescriptorArray::MAY_BE_SHARED),
                      DescriptorArray);
 }
 
@@ -495,7 +497,9 @@ Handle<Map> Factory::CopyMap(Handle<Map> src,
 
 
 Handle<Map> Factory::CopyMapDropTransitions(Handle<Map> src) {
-  CALL_HEAP_FUNCTION(isolate(), src->CopyDropTransitions(), Map);
+  CALL_HEAP_FUNCTION(isolate(),
+                     src->CopyDropTransitions(DescriptorArray::MAY_BE_SHARED),
+                     Map);
 }
 
 
@@ -550,18 +554,44 @@ Handle<JSFunction> Factory::NewFunctionFromSharedFunctionInfo(
   }
 
   result->set_context(*context);
+
+  int index = FLAG_cache_optimized_code
+      ? function_info->SearchOptimizedCodeMap(context->global_context())
+      : -1;
   if (!function_info->bound()) {
-    int number_of_literals = function_info->num_literals();
-    Handle<FixedArray> literals = NewFixedArray(number_of_literals, pretenure);
-    if (number_of_literals > 0) {
-      // Store the object, regexp and array functions in the literals
-      // array prefix.  These functions will be used when creating
-      // object, regexp and array literals in this function.
-      literals->set(JSFunction::kLiteralGlobalContextIndex,
-                    context->global_context());
+    if (index > 0) {
+      FixedArray* code_map =
+          FixedArray::cast(function_info->optimized_code_map());
+      FixedArray* cached_literals = FixedArray::cast(code_map->get(index + 1));
+      ASSERT(cached_literals != NULL);
+      ASSERT(function_info->num_literals() == 0 ||
+             (code_map->get(index - 1) ==
+              cached_literals->get(JSFunction::kLiteralGlobalContextIndex)));
+      result->set_literals(cached_literals);
+    } else {
+      int number_of_literals = function_info->num_literals();
+      Handle<FixedArray> literals =
+          NewFixedArray(number_of_literals, pretenure);
+      if (number_of_literals > 0) {
+        // Store the object, regexp and array functions in the literals
+        // array prefix.  These functions will be used when creating
+        // object, regexp and array literals in this function.
+        literals->set(JSFunction::kLiteralGlobalContextIndex,
+                      context->global_context());
+      }
+      result->set_literals(*literals);
     }
-    result->set_literals(*literals);
   }
+
+  if (index > 0) {
+    // Caching of optimized code enabled and optimized code found.
+    Code* code = Code::cast(
+        FixedArray::cast(function_info->optimized_code_map())->get(index));
+    ASSERT(code != NULL);
+    result->ReplaceCode(code);
+    return result;
+  }
+
   if (V8::UseCrankshaft() &&
       FLAG_always_opt &&
       result->is_compiled() &&
@@ -675,6 +705,43 @@ Handle<Object> Factory::NewError(const char* type,
 }
 
 
+Handle<String> Factory::EmergencyNewError(const char* type,
+                                          Handle<JSArray> args) {
+  const int kBufferSize = 1000;
+  char buffer[kBufferSize];
+  size_t space = kBufferSize;
+  char* p = &buffer[0];
+
+  Vector<char> v(buffer, kBufferSize);
+  OS::StrNCpy(v, type, space);
+  space -= Min(space, strlen(type));
+  p = &buffer[kBufferSize] - space;
+
+  for (unsigned i = 0; i < ARRAY_SIZE(args); i++) {
+    if (space > 0) {
+      *p++ = ' ';
+      space--;
+      if (space > 0) {
+        MaybeObject* maybe_arg = args->GetElement(i);
+        Handle<String> arg_str(reinterpret_cast<String*>(maybe_arg));
+        const char* arg = *arg_str->ToCString();
+        Vector<char> v2(p, space);
+        OS::StrNCpy(v2, arg, space);
+        space -= Min(space, strlen(arg));
+        p = &buffer[kBufferSize] - space;
+      }
+    }
+  }
+  if (space > 0) {
+    *p = '\0';
+  } else {
+    buffer[kBufferSize - 1] = '\0';
+  }
+  Handle<String> error_string = NewStringFromUtf8(CStrVector(buffer), TENURED);
+  return error_string;
+}
+
+
 Handle<Object> Factory::NewError(const char* maker,
                                  const char* type,
                                  Handle<JSArray> args) {
@@ -683,8 +750,9 @@ Handle<Object> Factory::NewError(const char* maker,
       isolate()->js_builtins_object()->GetPropertyNoExceptionThrown(*make_str));
   // If the builtins haven't been properly configured yet this error
   // constructor may not have been defined.  Bail out.
-  if (!fun_obj->IsJSFunction())
-    return undefined_value();
+  if (!fun_obj->IsJSFunction()) {
+    return EmergencyNewError(type, args);
+  }
   Handle<JSFunction> fun = Handle<JSFunction>::cast(fun_obj);
   Handle<Object> type_obj = LookupAsciiSymbol(type);
   Handle<Object> argv[] = { type_obj, args };
@@ -775,7 +843,7 @@ Handle<JSFunction> Factory::NewFunctionWithPrototype(Handle<String> name,
       instance_size != JSObject::kHeaderSize) {
     Handle<Map> initial_map = NewMap(type,
                                      instance_size,
-                                     FAST_SMI_ONLY_ELEMENTS);
+                                     GetInitialFastElementsKind());
     function->set_initial_map(*initial_map);
     initial_map->set_constructor(*function);
   }
@@ -900,7 +968,7 @@ Handle<DescriptorArray> Factory::CopyAppendCallbackDescriptors(
     Handle<String> key =
         SymbolFromString(Handle<String>(String::cast(entry->name())));
     // Check if a descriptor with this name already exists before writing.
-    if (result->LinearSearch(*key, descriptor_count) ==
+    if (result->LinearSearch(EXPECT_UNSORTED, *key, descriptor_count) ==
         DescriptorArray::kNotFound) {
       CallbacksDescriptor desc(*key, *entry, entry->property_attributes());
       result->Set(descriptor_count, &desc, witness);
@@ -1013,10 +1081,11 @@ void Factory::EnsureCanContainHeapObjectElements(Handle<JSArray> array) {
 
 void Factory::EnsureCanContainElements(Handle<JSArray> array,
                                        Handle<FixedArrayBase> elements,
+                                       uint32_t length,
                                        EnsureElementsMode mode) {
   CALL_HEAP_FUNCTION_VOID(
       isolate(),
-      array->EnsureCanContainElements(*elements, mode));
+      array->EnsureCanContainElements(*elements, length, mode));
 }
 
 

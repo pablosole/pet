@@ -1092,7 +1092,7 @@ bool Genesis::InitializeGlobal(Handle<GlobalObject> inner_global,
 
     // Check the state of the object.
     ASSERT(result->HasFastProperties());
-    ASSERT(result->HasFastElements());
+    ASSERT(result->HasFastObjectElements());
 #endif
   }
 
@@ -1185,7 +1185,7 @@ bool Genesis::InitializeGlobal(Handle<GlobalObject> inner_global,
 
     // Check the state of the object.
     ASSERT(result->HasFastProperties());
-    ASSERT(result->HasFastElements());
+    ASSERT(result->HasFastObjectElements());
 #endif
   }
 
@@ -1632,10 +1632,11 @@ bool Genesis::InstallNatives() {
     // through a common bottleneck that would make the SMI_ONLY -> FAST_ELEMENT
     // transition easy to trap. Moreover, they rarely are smi-only.
     MaybeObject* maybe_map =
-        array_function->initial_map()->CopyDropTransitions();
+        array_function->initial_map()->CopyDropTransitions(
+            DescriptorArray::MAY_BE_SHARED);
     Map* new_map;
-    if (!maybe_map->To<Map>(&new_map)) return false;
-    new_map->set_elements_kind(FAST_ELEMENTS);
+    if (!maybe_map->To(&new_map)) return false;
+    new_map->set_elements_kind(FAST_HOLEY_ELEMENTS);
     array_function->set_initial_map(new_map);
 
     // Make "length" magic on instances.
@@ -2092,14 +2093,10 @@ bool Genesis::InstallJSBuiltins(Handle<JSBuiltinsObject> builtins) {
     Handle<JSFunction> function
         = Handle<JSFunction>(JSFunction::cast(function_object));
     builtins->set_javascript_builtin(id, *function);
-    Handle<SharedFunctionInfo> shared
-        = Handle<SharedFunctionInfo>(function->shared());
-    if (!SharedFunctionInfo::EnsureCompiled(shared, CLEAR_EXCEPTION)) {
+    if (!JSFunction::CompileLazy(function, CLEAR_EXCEPTION)) {
       return false;
     }
-    // Set the code object on the function object.
-    function->ReplaceCode(function->shared()->code());
-    builtins->set_javascript_builtin_code(id, shared->code());
+    builtins->set_javascript_builtin_code(id, function->shared()->code());
   }
   return true;
 }
@@ -2195,7 +2192,6 @@ void Genesis::TransferNamedProperties(Handle<JSObject> from,
           break;
         }
         case MAP_TRANSITION:
-        case ELEMENTS_TRANSITION:
         case CONSTANT_TRANSITION:
         case NULL_DESCRIPTOR:
           // Ignore non-properties.

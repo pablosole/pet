@@ -72,6 +72,7 @@ class StringsStorage {
   const char* GetName(int index);
   inline const char* GetFunctionName(String* name);
   inline const char* GetFunctionName(const char* name);
+  size_t GetUsedMemorySize() const;
 
  private:
   static const int kMaxNameSize = 1024;
@@ -529,35 +530,14 @@ class HeapEntry BASE_EMBEDDED {
   void set_name(const char* name) { name_ = name; }
   inline SnapshotObjectId id() { return id_; }
   int self_size() { return self_size_; }
-  int retained_size() { return retained_size_; }
-  void add_retained_size(int size) { retained_size_ += size; }
-  void set_retained_size(int size) { retained_size_ = size; }
   INLINE(int index() const);
-  int postorder_index() { return postorder_index_; }
-  void set_postorder_index(int value) { postorder_index_ = value; }
   int children_count() const { return children_count_; }
   INLINE(int set_children_index(int index));
-  INLINE(int set_retainers_index(int index));
   void add_child(HeapGraphEdge* edge) {
     children_arr()[children_count_++] = edge;
   }
-  void add_retainer(HeapGraphEdge* edge) {
-    retainers_arr()[retainers_count_++] = edge;
-  }
   Vector<HeapGraphEdge*> children() {
     return Vector<HeapGraphEdge*>(children_arr(), children_count_); }
-  Vector<HeapGraphEdge*> retainers() {
-    return Vector<HeapGraphEdge*>(retainers_arr(), retainers_count_); }
-  INLINE(HeapEntry* dominator() const);
-  void set_dominator(HeapEntry* entry) {
-    ASSERT(entry != NULL);
-    dominator_ = entry->index();
-  }
-  void clear_paint() { painted_ = false; }
-  bool painted() { return painted_; }
-  void paint() { painted_ = true; }
-  bool user_reachable() { return user_reachable_; }
-  void set_user_reachable() { user_reachable_ = true; }
 
   void SetIndexedReference(
       HeapGraphEdge::Type type, int index, HeapEntry* entry);
@@ -571,22 +551,12 @@ class HeapEntry BASE_EMBEDDED {
 
  private:
   INLINE(HeapGraphEdge** children_arr());
-  INLINE(HeapGraphEdge** retainers_arr());
   const char* TypeAsString();
 
-  unsigned painted_: 1;
-  unsigned user_reachable_: 1;
-  int dominator_: 30;
   unsigned type_: 4;
-  int retainers_count_: 28;
-  int retainers_index_;
-  int children_count_;
+  int children_count_: 28;
   int children_index_;
   int self_size_;
-  union {
-    int postorder_index_;  // Used during dominator tree building.
-    int retained_size_;    // At that moment, there is no retained size yet.
-  };
   SnapshotObjectId id_;
   HeapSnapshot* snapshot_;
   const char* name_;
@@ -626,7 +596,6 @@ class HeapSnapshot {
   List<HeapEntry>& entries() { return entries_; }
   List<HeapGraphEdge>& edges() { return edges_; }
   List<HeapGraphEdge*>& children() { return children_; }
-  List<HeapGraphEdge*>& retainers() { return retainers_; }
   void RememberLastJSObjectId();
   SnapshotObjectId max_snapshot_js_object_id() const {
     return max_snapshot_js_object_id_;
@@ -640,11 +609,9 @@ class HeapSnapshot {
   HeapEntry* AddGcRootsEntry();
   HeapEntry* AddGcSubrootEntry(int tag);
   HeapEntry* AddNativesRootEntry();
-  void ClearPaint();
   HeapEntry* GetEntryById(SnapshotObjectId id);
   List<HeapEntry*>* GetSortedEntriesList();
-  void SetDominatorsToSelf();
-  void FillChildrenAndRetainers();
+  void FillChildren();
 
   void Print(int max_depth);
   void PrintEntriesSize();
@@ -661,7 +628,6 @@ class HeapSnapshot {
   List<HeapEntry> entries_;
   List<HeapGraphEdge> edges_;
   List<HeapGraphEdge*> children_;
-  List<HeapGraphEdge*> retainers_;
   List<HeapEntry*> sorted_entries_;
   SnapshotObjectId max_snapshot_js_object_id_;
 
@@ -684,7 +650,8 @@ class HeapObjectsMap {
   }
 
   void StopHeapObjectsTracking();
-  void PushHeapObjectsStats(OutputStream* stream);
+  SnapshotObjectId PushHeapObjectsStats(OutputStream* stream);
+  size_t GetUsedMemorySize() const;
 
   static SnapshotObjectId GenerateId(v8::RetainedObjectInfo* info);
   static inline SnapshotObjectId GetNthGcSubrootId(int delta);
@@ -742,7 +709,7 @@ class HeapSnapshotsCollection {
   ~HeapSnapshotsCollection();
 
   bool is_tracking_objects() { return is_tracking_objects_; }
-  void PushHeapObjectsStats(OutputStream* stream) {
+  SnapshotObjectId PushHeapObjectsStats(OutputStream* stream) {
     return ids_.PushHeapObjectsStats(stream);
   }
   void StartHeapObjectsTracking() { is_tracking_objects_ = true; }
@@ -769,6 +736,7 @@ class HeapSnapshotsCollection {
   SnapshotObjectId last_assigned_id() const {
     return ids_.last_assigned_id();
   }
+  size_t GetUsedMemorySize() const;
 
  private:
   INLINE(static bool HeapSnapshotsMatch(void* key1, void* key2)) {
@@ -1061,16 +1029,9 @@ class HeapSnapshotGenerator : public SnapshottingProgressReportingInterface {
   bool GenerateSnapshot();
 
  private:
-  bool BuildDominatorTree(const Vector<HeapEntry*>& entries,
-                          Vector<int>* dominators);
-  bool CalculateRetainedSizes();
   bool FillReferences();
-  void FillPostorderIndexes(Vector<HeapEntry*>* entries);
-  bool IsUserGlobalReference(const HeapGraphEdge* edge);
-  void MarkUserReachableObjects();
   void ProgressStep();
   bool ProgressReport(bool force = false);
-  bool SetEntriesDominators();
   void SetProgressTotal(int iterations_count);
 
   HeapSnapshot* snapshot_;
@@ -1114,10 +1075,10 @@ class HeapSnapshotJSONSerializer {
   int GetStringId(const char* s);
   int entry_index(HeapEntry* e) { return e->index() * kNodeFieldsCount; }
   void SerializeEdge(HeapGraphEdge* edge, bool first_edge);
-  void SerializeEdges(const List<HeapEntry>& nodes);
+  void SerializeEdges();
   void SerializeImpl();
-  void SerializeNode(HeapEntry* entry, int edges_index);
-  void SerializeNodes(const List<HeapEntry>& nodes);
+  void SerializeNode(HeapEntry* entry);
+  void SerializeNodes();
   void SerializeSnapshot();
   void SerializeString(const unsigned char* s);
   void SerializeStrings();
