@@ -45,8 +45,10 @@ int main(int argc, char * argv[])
 		return -1;
 	}
 
-	PIN_AddInternalExceptionHandler(&InternalExceptionHandler, 0);
-	PIN_AddApplicationStartFunction(&AddGenericInstrumentation, 0);
+	if (!WINDOWS::IsDebuggerPresent())
+		PIN_AddInternalExceptionHandler(InternalExceptionHandler, 0);
+
+	PIN_AddApplicationStartFunction(AddGenericInstrumentation, 0);
 
 	PIN_InitSymbols();
 

@@ -43,6 +43,7 @@ PinContext * const INVALID_PIN_CONTEXT = reinterpret_cast<PinContext *>(0);
 PinContext * const NO_MANAGER_CONTEXT = reinterpret_cast<PinContext *>(-1);
 
 //we associate each PinContext with an application thread.
+typedef std::map<uint32_t, Persistent<Function>> FunctionsCacheMap;
 class CACHE_ALIGN PinContext {
 public:
 	enum ContextState { NEW_CONTEXT, INITIALIZED_CONTEXT, KILLING_CONTEXT, DEAD_CONTEXT, ERROR_CONTEXT };
@@ -88,6 +89,7 @@ public:
 	inline Isolate *GetIsolate() { return isolate; }
 	inline Persistent<Context> &GetContext() { return context; }
 	inline Persistent<Object> &GetGlobal() { return global; }
+	Persistent<Function> PinContext::EnsureFunction(AnalysisFunction *af);
 
 private:
 	Isolate *isolate;
@@ -97,6 +99,7 @@ private:
 	enum ContextState state;
 	PIN_MUTEX lock;
 	PIN_SEMAPHORE changed;
+	FunctionsCacheMap funcache;
 };
 
 
@@ -165,6 +168,8 @@ class ContextManager {
 		return EnsurePinContext(tid, false);
 	}
 	inline PinContext *LoadPinContext() { return LoadPinContext(PIN_ThreadId()); }
+
+	//AnalysisFunction API
 	AnalysisFunction *AddFunction(string body);
 	bool RemoveFunction(unsigned int funcId);
 	AnalysisFunction *ContextManager::GetFunction(unsigned int funcId);
@@ -201,41 +206,31 @@ VOID AddGenericInstrumentation(VOID *);
 void KillPinTool();
 
 
-typedef std::map<THREADID, Persistent<Function>> FunctionsCacheMap;
 class CACHE_ALIGN AnalysisFunction {
 public:
 	AnalysisFunction(string &_body) :
-		body(_body), num_args(0), enabled(true)
+		num_args(0), enabled(true)
 	{
 		arguments = IARGLIST_Alloc();
 		IARGLIST_AddArguments(arguments, IARG_REG_VALUE, ctxmgr->GetPerThreadContextReg(), \
 			                             IARG_PTR, this, IARG_END);
+		SetBody(_body);
 	}
 
 	~AnalysisFunction()
 	{
-		ClearFunctionCache();
 		IARGLIST_Free(arguments);
-	}
-
-	void ClearFunctionCache()
-	{
-		FunctionsCacheMap::iterator it;
-
-		for (it=funcache.begin(); it != funcache.end(); it++)
-			if (!it->second.IsEmpty()) {
-				it->second.Dispose();
-			}
-		funcache.clear();
 	}
 
 	Persistent<Function> EnsureFunction(PinContext *context);
 	inline unsigned int GetFuncId() { return funcId; }
 	inline void SetFuncId(unsigned int f) { funcId = f; }
+	inline unsigned int GetHash() { return hash; }
+	uint32_t HashBody();
 	inline string &GetBody() { return body; }
 	inline void SetBody(string &_body) {
 		body = _body;
-		ClearFunctionCache();
+		HashBody();
 	}
 	inline void Enable() { enabled = true; }
 	inline void Disable() { enabled = false; }
@@ -256,8 +251,8 @@ public:
 
 private:
 	unsigned int funcId;
+	unsigned int hash;
 	string body;
-	FunctionsCacheMap funcache;
 	IARGLIST arguments;
 	uint32_t num_args;
 	bool enabled;

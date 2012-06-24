@@ -84,3 +84,46 @@ VOID PinContext::ThreadInfoDestructor(VOID *v)
 	context->Unlock();
 	context->Notify();
 }
+
+Persistent<Function> PinContext::EnsureFunction(AnalysisFunction *af)
+{
+	FunctionsCacheMap::const_iterator it;
+
+	it = funcache.find(af->GetHash());
+	if (it != funcache.end())
+		return it->second;
+
+	DEBUG("EnsureFunction hash:" << af->GetHash());
+
+	Isolate::Scope iscope(GetIsolate());
+	Locker lock(GetIsolate());
+	HandleScope hscope;
+	Context::Scope cscope(GetContext());
+
+	Handle<String> source = String::Concat(String::New("__fundef = "), String::New(af->GetBody().c_str()));
+	Handle<Script> script = Script::Compile(source);
+	if (script.IsEmpty()) {
+		DEBUG("Exception compiling on TID:" << GetTid());
+		af->Disable();
+		return Persistent<Function>();
+	}
+	Handle<Value> fun_val = script->Run();
+	if (!fun_val->IsFunction()) {
+		DEBUG("Function body didnt create a function on TID:" << GetTid());
+		af->Disable();
+		return Persistent<Function>();
+	}
+
+	Persistent<Function> newfun = Persistent<Function>::New(Handle<Function>::Cast(fun_val));
+
+	//If the function is set with a name (non-anonymous function) make it available globally.
+	Handle<Value> name_val = newfun->GetName();
+	if (!name_val.IsEmpty()) {
+		Handle<String> name(String::Cast(*name_val));
+		GetContext()->Global()->Set(name, fun_val);
+	}
+
+	funcache[af->GetHash()] = newfun;
+
+	return newfun;
+}

@@ -295,9 +295,12 @@ inline PinContext *ContextManager::EnsurePinContext(THREADID tid, bool create)
 	return context;
 }
 
+
 AnalysisFunction *ContextManager::AddFunction(string body)
 {
 	AnalysisFunction *af = new AnalysisFunction(body);
+
+	DEBUG("Adding AF with hash:" << af->GetHash());
 
 	if (!af)
 		return 0;
@@ -345,42 +348,14 @@ AnalysisFunction *ContextManager::GetFunction(unsigned int funcId)
 	return af;
 }
 
-Persistent<Function> AnalysisFunction::EnsureFunction(PinContext *context)
+
+uint32_t AnalysisFunction::HashBody()
 {
-	FunctionsCacheMap::const_iterator it;
+	uint32_t hash = 0;
+	const char *s = body.c_str();
 
-	it = funcache.find(context->GetTid());
-	if (it != funcache.end())
-		return it->second;
+	while (*s)
+		hash = hash * 101 + *s++;
 
-	Isolate::Scope iscope(context->GetIsolate());
-	Locker lock(context->GetIsolate());
-	HandleScope hscope;
-	Context::Scope cscope(context->GetContext());
-
-	Handle<String> source = String::Concat(String::New("__fundef = "), String::New(body.c_str()));
-	Handle<Script> script = Script::Compile(source);
-	if (script.IsEmpty()) {
-		DEBUG("Exception compiling on TID:" << context->GetTid());
-		return Persistent<Function>();
-	}
-	Handle<Value> fun_val = script->Run();
-	if (!fun_val->IsFunction()) {
-		DEBUG("Function body didnt create a function on TID:" << context->GetTid());
-		return Persistent<Function>();
-	}
-
-	Persistent<Function> newfun = Persistent<Function>::New(Handle<Function>::Cast(fun_val));
-
-	//If the function is set with a name (non-anonymous function) make it available globally.
-	Handle<Value> name_val = newfun->GetName();
-	if (!name_val.IsEmpty()) {
-		Handle<String> name(String::Cast(*name_val));
-		context->GetContext()->Global()->Set(name, fun_val);
-	}
-
-	funcache[context->GetTid()] = newfun;
-
-
-	return newfun;
+	return hash;
 }

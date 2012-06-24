@@ -32,7 +32,7 @@ void KillPinTool()
 
 EXCEPT_HANDLING_RESULT InternalExceptionHandler(THREADID tid, EXCEPTION_INFO *pExceptInfo, PHYSICAL_CONTEXT *pPhysCtxt, VOID *v)
 {
-	DEBUG("Uncaught internal exception on tid: " << tid);
+	DEBUG("Uncaught internal exception on tid " << tid << ":" << PIN_ExceptionToString(pExceptInfo));
 	KillPinTool();
 
 	return EHR_UNHANDLED;

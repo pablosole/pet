@@ -9,21 +9,10 @@ UINT32 docount(uint32_t argc, PinContext *context, AnalysisFunction *af, ...)
 	if (!af->IsEnabled())
 		return 0;
 
-#if 0
-	if (!af) {
-		DEBUG("Analysis Function not found on tid: " << context->GetTid());
-		return 0;
-	}
-#endif
-
-	Persistent<Function> fun = af->EnsureFunction(context);
-
-#if 0
+	Persistent<Function> fun = context->EnsureFunction(af);
 	if (fun.IsEmpty()) {
-		DEBUG("Function object not found for af: " << func << " on tid: " << context->GetTid());
 		return 0;
 	}
-#endif
 
 	Isolate::Scope iscope(context->GetIsolate());
 	Locker lock(context->GetIsolate());
@@ -36,6 +25,7 @@ UINT32 docount(uint32_t argc, PinContext *context, AnalysisFunction *af, ...)
 	//stack allocation is faster than heap and freea becomes basically a NOOP
 	Handle<Value> *argv = reinterpret_cast<Handle<Value> *>(_malloca(sizeof(char *)*argc));
 
+	//XXX: mangle different IARG_TYPEs differently
 	for (uint32_t x=0; x < argc; x++)
 		argv[x] = Uint32::NewFromUnsigned(va_arg(argptr, uint32_t));
 
@@ -44,15 +34,6 @@ UINT32 docount(uint32_t argc, PinContext *context, AnalysisFunction *af, ...)
 	TryCatch trycatch;
 
 	fun->FastCall(context->GetIsolate(), *(context->GetContext()), context->GetGlobal(), argc, argv);
-
-	if (argv[0]->Uint32Value() != argv[1]->Uint32Value())
-	{
-		DEBUG("argv[0]=" << argv[0]->Uint32Value());
-		DEBUG("argv[1]=" << argv[1]->Uint32Value());
-	}
-
-	if (argv[2]->Uint32Value() != 0xcafecafe)
-		DEBUG("argv[2]=" << argv[2]->Uint32Value());
 
 	if (trycatch.HasCaught())
 	{
@@ -73,13 +54,29 @@ VOID Trace(INS ins, VOID *v)
 		return;
 	}
 
-	AnalysisFunction *af = reinterpret_cast<AnalysisFunction *>(v);
+	static int done=0;
+	static AnalysisFunction *af1 = ctxmgr->AddFunction("function update(isread) { if (isread == 1) read++; else write++; }");
+	static AnalysisFunction *af2 = ctxmgr->AddFunction("function update(isread) { if (isread == 1) read++; else write++; }");
+	if (!done) {
+		af1->AddArgument<uint32_t>(IARG_UINT32, 1);
+		af2->AddArgument<uint32_t>(IARG_UINT32, 0);
+		done=1;
+	}
 
-	if (INS_IsMemoryRead(ins) || INS_IsMemoryWrite(ins)) {
+	if (INS_IsMemoryRead(ins)) {
 		INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)docount, \
 		IARG_PRESERVE, &ctxmgr->GetPreservedRegset(), \
-		IARG_UINT32, af->GetArgumentCount(), \
-		IARG_IARGLIST, af->GetArguments(), \
+		IARG_UINT32, af1->GetArgumentCount(), \
+		IARG_IARGLIST, af1->GetArguments(), \
+		IARG_END);
+
+		count++;
+	}
+	if (INS_IsMemoryWrite(ins)) {
+		INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)docount, \
+		IARG_PRESERVE, &ctxmgr->GetPreservedRegset(), \
+		IARG_UINT32, af2->GetArgumentCount(), \
+		IARG_IARGLIST, af2->GetArguments(), \
 		IARG_END);
 
 		count++;
@@ -177,12 +174,7 @@ VOID AddGenericInstrumentation(VOID *)
 	//before the first ThreadStart
 	DEBUG("Main TID:" << PIN_ThreadId());
 
-	AnalysisFunction *af = ctxmgr->AddFunction("function update(readsize, writesize, other) { if (readsize != 0) read++; if (writesize != 0) write++; if (other == 0xcafecafe) yahoo=1; }");
-	af->AddArgument(IARG_MEMORYREAD_SIZE);
-	af->AddArgument(IARG_MEMORYWRITE_SIZE);
-	af->AddArgument<uint32_t>(IARG_UINT32, 0xcafecafe);
-
-	PIN_AddThreadStartFunction(&ThreadStart, af);
-	PIN_AddThreadFiniFunction(&ThreadFini, 0);
-	PIN_AddFiniUnlockedFunction(&Fini, 0);
+	PIN_AddThreadStartFunction(ThreadStart, 0);
+	PIN_AddThreadFiniFunction(ThreadFini, 0);
+	PIN_AddFiniUnlockedFunction(Fini, 0);
 }
