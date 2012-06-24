@@ -165,6 +165,14 @@ function ADD(x) {
   if (IS_NUMBER(this) && IS_NUMBER(x)) return %NumberAdd(this, x);
   if (IS_STRING(this) && IS_STRING(x)) return %_StringAdd(this, x);
 
+  //overloaded operators support
+  if (IS_SPEC_OBJECT(this)) {
+    var ADD_fun = this.operator_add;
+    if (IS_SPEC_FUNCTION(ADD_fun)) {
+      return %_CallFunction(this, x, ADD_fun);
+    }
+  }
+
   // Default implementation.
   var a = %ToPrimitive(this, NO_HINT);
   var b = %ToPrimitive(x, NO_HINT);
@@ -212,6 +220,14 @@ function STRING_ADD_RIGHT(y) {
 
 // ECMA-262, section 11.6.2, page 50.
 function SUB(y) {
+  //overloaded operators support
+  if (IS_SPEC_OBJECT(this)) {
+    var SUB_fun = this.operator_sub;
+    if (IS_SPEC_FUNCTION(SUB_fun)) {
+      return %_CallFunction(this, y, SUB_fun);
+    }
+  }
+  
   var x = IS_NUMBER(this) ? this : %NonNumberToNumber(this);
   if (!IS_NUMBER(y)) y = %NonNumberToNumber(y);
   return %NumberSub(x, y);
@@ -220,6 +236,14 @@ function SUB(y) {
 
 // ECMA-262, section 11.5.1, page 48.
 function MUL(y) {
+  //overloaded operators support
+  if (IS_SPEC_OBJECT(this)) {
+    var MUL_fun = this.operator_mul;
+    if (IS_SPEC_FUNCTION(MUL_fun)) {
+      return %_CallFunction(this, y, MUL_fun);
+    }
+  }
+  
   var x = IS_NUMBER(this) ? this : %NonNumberToNumber(this);
   if (!IS_NUMBER(y)) y = %NonNumberToNumber(y);
   return %NumberMul(x, y);
@@ -228,6 +252,14 @@ function MUL(y) {
 
 // ECMA-262, section 11.5.2, page 49.
 function DIV(y) {
+  //overloaded operators support
+  if (IS_SPEC_OBJECT(this)) {
+    var DIV_fun = this.operator_div;
+    if (IS_SPEC_FUNCTION(DIV_fun)) {
+      return %_CallFunction(this, y, DIV_fun);
+    }
+  }
+  
   var x = IS_NUMBER(this) ? this : %NonNumberToNumber(this);
   if (!IS_NUMBER(y)) y = %NonNumberToNumber(y);
   return %NumberDiv(x, y);
@@ -236,6 +268,14 @@ function DIV(y) {
 
 // ECMA-262, section 11.5.3, page 49.
 function MOD(y) {
+  //overloaded operators support
+  if (IS_SPEC_OBJECT(this)) {
+    var MOD_fun = this.operator_mod;
+    if (IS_SPEC_FUNCTION(MOD_fun)) {
+      return %_CallFunction(this, y, MOD_fun);
+    }
+  }
+  
   var x = IS_NUMBER(this) ? this : %NonNumberToNumber(this);
   if (!IS_NUMBER(y)) y = %NonNumberToNumber(y);
   return %NumberMod(x, y);
@@ -250,6 +290,14 @@ function MOD(y) {
 
 // ECMA-262, section 11.10, page 57.
 function BIT_OR(y) {
+  //overloaded operators support
+  if (IS_SPEC_OBJECT(this)) {
+    var OR_fun = this.operator_or;
+    if (IS_SPEC_FUNCTION(OR_fun)) {
+      return %_CallFunction(this, y, OR_fun);
+    }
+  }
+  
   var x = IS_NUMBER(this) ? this : %NonNumberToNumber(this);
   if (!IS_NUMBER(y)) y = %NonNumberToNumber(y);
   return %NumberOr(x, y);
@@ -258,6 +306,14 @@ function BIT_OR(y) {
 
 // ECMA-262, section 11.10, page 57.
 function BIT_AND(y) {
+  //overloaded operators support
+  if (IS_SPEC_OBJECT(this)) {
+    var AND_fun = this.operator_and;
+    if (IS_SPEC_FUNCTION(AND_fun)) {
+      return %_CallFunction(this, y, AND_fun);
+    }
+  }
+  
   var x;
   if (IS_NUMBER(this)) {
     x = this;
@@ -280,6 +336,14 @@ function BIT_AND(y) {
 
 // ECMA-262, section 11.10, page 57.
 function BIT_XOR(y) {
+  //overloaded operators support
+  if (IS_SPEC_OBJECT(this)) {
+    var XOR_fun = this.operator_xor;
+    if (IS_SPEC_FUNCTION(XOR_fun)) {
+      return %_CallFunction(this, y, XOR_fun);
+    }
+  }
+  
   var x = IS_NUMBER(this) ? this : %NonNumberToNumber(this);
   if (!IS_NUMBER(y)) y = %NonNumberToNumber(y);
   return %NumberXor(x, y);
@@ -288,6 +352,14 @@ function BIT_XOR(y) {
 
 // ECMA-262, section 11.4.7, page 47.
 function UNARY_MINUS() {
+  //overloaded operators support
+  if (IS_SPEC_OBJECT(this)) {
+    var MINUS_fun = this.operator_minus;
+    if (IS_SPEC_FUNCTION(MINUS_fun)) {
+      return %_CallFunction(this, MINUS_fun);
+    }
+  }
+  
   var x = IS_NUMBER(this) ? this : %NonNumberToNumber(this);
   return %NumberUnaryMinus(x);
 }
@@ -295,6 +367,14 @@ function UNARY_MINUS() {
 
 // ECMA-262, section 11.4.8, page 48.
 function BIT_NOT() {
+  //overloaded operators support
+  if (IS_SPEC_OBJECT(this)) {
+    var NOT_fun = this.operator_not;
+    if (IS_SPEC_FUNCTION(NOT_fun)) {
+      return %_CallFunction(this, NOT_fun);
+    }
+  }
+  
   var x = IS_NUMBER(this) ? this : %NonNumberToNumber(this);
   return %NumberNot(x);
 }
@@ -302,6 +382,14 @@ function BIT_NOT() {
 
 // ECMA-262, section 11.7.1, page 51.
 function SHL(y) {
+  //overloaded operators support
+  if (IS_SPEC_OBJECT(this)) {
+    var SHL_fun = this.operator_shl;
+    if (IS_SPEC_FUNCTION(SHL_fun)) {
+      return %_CallFunction(this, y, SHL_fun);
+    }
+  }
+  
   var x = IS_NUMBER(this) ? this : %NonNumberToNumber(this);
   if (!IS_NUMBER(y)) y = %NonNumberToNumber(y);
   return %NumberShl(x, y);
@@ -310,6 +398,14 @@ function SHL(y) {
 
 // ECMA-262, section 11.7.2, page 51.
 function SAR(y) {
+  //overloaded operators support
+  if (IS_SPEC_OBJECT(this)) {
+    var SAR_fun = this.operator_sar;
+    if (IS_SPEC_FUNCTION(SAR_fun)) {
+      return %_CallFunction(this, y, SAR_fun);
+    }
+  }
+  
   var x;
   if (IS_NUMBER(this)) {
     x = this;
@@ -332,6 +428,14 @@ function SAR(y) {
 
 // ECMA-262, section 11.7.3, page 52.
 function SHR(y) {
+  //overloaded operators support
+  if (IS_SPEC_OBJECT(this)) {
+    var SHR_fun = this.operator_shr;
+    if (IS_SPEC_FUNCTION(SHR_fun)) {
+      return %_CallFunction(this, y, SHR_fun);
+    }
+  }
+  
   var x = IS_NUMBER(this) ? this : %NonNumberToNumber(this);
   if (!IS_NUMBER(y)) y = %NonNumberToNumber(y);
   return %NumberShr(x, y);
