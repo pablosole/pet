@@ -1744,6 +1744,10 @@ class Function : public Object {
  public:
   V8EXPORT Local<Object> NewInstance() const;
   V8EXPORT Local<Object> NewInstance(int argc, Handle<Value> argv[]) const;
+  V8EXPORT bool FastCall(Isolate *isolate, Context *context, 
+							 Handle<Object> recv,
+                             int argc,
+                             Handle<Value> argv[]);
   V8EXPORT Local<Value> Call(Handle<Object> recv,
                              int argc,
                              Handle<Value> argv[]);

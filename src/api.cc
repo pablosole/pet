@@ -58,7 +58,6 @@
 #include "version.h"
 #include "vm-state-inl.h"
 
-
 #define LOG_API(isolate, expr) LOG(isolate, ApiEntryCall(expr))
 
 #define ENTER_V8(isolate)                                        \
@@ -3625,6 +3624,68 @@ Local<v8::Object> Function::NewInstance(int argc,
   return scope.Close(Utils::ToLocal(i::Handle<i::JSObject>::cast(returned)));
 }
 
+
+inline bool Function::FastCall(Isolate *isolate_, Context *context, 
+							   v8::Handle<v8::Object> recv, int argc,
+                                v8::Handle<v8::Value> argv[]) {
+
+  i::Isolate *isolate = reinterpret_cast<i::Isolate *>(isolate_);
+  ON_BAILOUT(isolate, "v8::Function::FastCall()", return false);
+  {
+    i::HandleScope scope(isolate);
+    i::Handle<i::JSFunction> func = Utils::OpenHandle(this);
+	i::Handle<i::Object> receiver = Utils::OpenHandle(*recv);
+    i::Handle<i::Object>* args = reinterpret_cast<i::Handle<i::Object>*>(argv);
+    EXCEPTION_PREAMBLE(isolate);
+
+	//Init Execution::Invoke
+	i::VMState state(isolate, i::JS);
+
+	// Placeholder for return value.
+	i::MaybeObject* value = reinterpret_cast<i::Object*>(i::kZapValue);
+
+	typedef i::Object* (*JSEntryFunction)(i::byte* entry,
+									 i::Object* function,
+									 i::Object* receiver,
+									 int argc,
+									 i::Object*** args);
+
+	i::Handle<i::Code> code = isolate->factory()->js_entry_code();
+
+	{
+		// Save and restore context around invocation and block the
+		// allocation of handles without explicit handle scopes.
+		i::SaveContext save(isolate);
+		i::NoHandleAllocation na;
+		JSEntryFunction stub_entry = i::FUNCTION_CAST<JSEntryFunction>(code->entry());
+
+		// Call the function through the right JS entry stub.
+		i::byte* function_entry = func->code()->entry();
+		i::Object* recv_call = *receiver;
+		i::Object*** argv_call = reinterpret_cast<i::Object***>(args);
+		value =
+			stub_entry(function_entry, *func, recv_call, argc, argv_call);
+	}
+
+	// Update the pending exception flag and return the value.
+	has_pending_exception = value->IsException();
+	if (has_pending_exception) {
+	isolate->ReportPendingMessages();
+	if (isolate->pending_exception() == i::Failure::OutOfMemoryException()) {
+	  if (!isolate->ignore_out_of_memory()) {
+		  i::V8::FatalProcessOutOfMemory("JS", true);
+	  }
+	}
+	return false;
+	} else {
+	isolate->clear_pending_message();
+	}
+
+	EXCEPTION_BAILOUT_CHECK_DO_CALLBACK(isolate, false);
+  }
+
+  return true;
+}
 
 Local<v8::Value> Function::Call(v8::Handle<v8::Object> recv, int argc,
                                 v8::Handle<v8::Value> argv[]) {
