@@ -3,7 +3,7 @@
 
 KNOB<string> KnobOutputFile(KNOB_MODE_WRITEONCE, "pintool", "o", "pet-output.log", "specify output file name");
 KNOB<string> KnobDebugFile(KNOB_MODE_WRITEONCE, "pintool", "d", "pet-debug.log", "specify debug file name");
-KNOB<string> KnobV8Options(KNOB_MODE_WRITEONCE, "pintool", "e", "--always_opt", "v8 engine options");
+KNOB<string> KnobV8Options(KNOB_MODE_WRITEONCE, "pintool", "e", "--always_opt --break_on_abort", "v8 engine options");
 
 INT32 Usage()
 {
@@ -45,6 +45,7 @@ int main(int argc, char * argv[])
 		return -1;
 	}
 
+	PIN_AddInternalExceptionHandler(&InternalExceptionHandler, 0);
 	PIN_AddApplicationStartFunction(&AddGenericInstrumentation, 0);
 
 	PIN_InitSymbols();

@@ -29,3 +29,11 @@ void KillPinTool()
 	DebugFile.close();
 	PIN_ExitProcess(0);
 }
+
+EXCEPT_HANDLING_RESULT InternalExceptionHandler(THREADID tid, EXCEPTION_INFO *pExceptInfo, PHYSICAL_CONTEXT *pPhysCtxt, VOID *v)
+{
+	DEBUG("Uncaught internal exception on tid: " << tid);
+	KillPinTool();
+
+	return EHR_UNHANDLED;
+}

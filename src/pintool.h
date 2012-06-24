@@ -7,38 +7,42 @@
         ASSERTQ(LEVEL_BASE::AssertString(PIN_ASSERT_FILE, __FUNCTION__, __LINE__, std::string("") + message));} while(0)
 
 #undef USING_V8_SHARED
-#include "../include/v8.h"
+#define WINDOWS_H_IN_NAMESPACE
+#include "v8.h"
+
 using namespace v8;
-namespace WINDOWS {
-#include <windows.h>
-}
+namespace i = v8::internal;
 #include <map>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <list>
 
 #define DEBUG(m) do { \
 DebugFile << m << endl; \
 cerr << m << endl; \
+DebugFile.flush(); \
+cerr.flush(); \
 } while (false);
 
 #define CACHE_LINE  64
 #define CACHE_ALIGN __declspec(align(CACHE_LINE))
 
 class PinContext;
+class AnalysisFunction;
 
-typedef VOID ENSURE_CALLBACK_FUNC(PinContext * arg);
+typedef VOID ENSURE_CALLBACK_FUNC(PinContext * arg, VOID *v);
 struct EnsureCallback {
 	THREADID tid;
 	ENSURE_CALLBACK_FUNC *callback;
 	bool create;
+	VOID *data;
 };
 
 PinContext * const INVALID_PIN_CONTEXT = reinterpret_cast<PinContext *>(0);
-PinContext * const EXISTS_PIN_CONTEXT = reinterpret_cast<PinContext *>(-1);
-PinContext * const NO_MANAGER_CONTEXT = reinterpret_cast<PinContext *>(-2);
+PinContext * const NO_MANAGER_CONTEXT = reinterpret_cast<PinContext *>(-1);
 
-//we associate each PinContext with an application thread
+//we associate each PinContext with an application thread.
 class CACHE_ALIGN PinContext {
 public:
 	enum ContextState { NEW_CONTEXT, INITIALIZED_CONTEXT, KILLING_CONTEXT, DEAD_CONTEXT, ERROR_CONTEXT };
@@ -57,13 +61,7 @@ public:
 		PIN_SemaphoreFini(&changed);
 	}
 
-	ContextState inline GetState(bool locked = false) {
-		ContextState tmp;
-		if (locked) Lock();
-		tmp = state;
-		if (locked) Unlock();
-		return tmp;
-	}
+	ContextState inline GetState() { return state; }
 	void inline SetState(ContextState s) { state = s; }
 
 	void inline Lock() { PIN_MutexLock(&lock); }
@@ -71,6 +69,10 @@ public:
 	void inline Wait() {
 		PIN_SemaphoreWait(&changed);
 		PIN_SemaphoreClear(&changed);
+	}
+	void inline WaitIfNotReady() {
+		if (GetState() == NEW_CONTEXT)
+			Wait();
 	}
 	void inline Notify() { PIN_SemaphoreSet(&changed); }
 
@@ -81,20 +83,25 @@ public:
 
 	static VOID ThreadInfoDestructor(VOID *);
 
-	static bool inline IsValid(PinContext *context) { return !(context == 0 || context == INVALID_PIN_CONTEXT || context == EXISTS_PIN_CONTEXT || context == NO_MANAGER_CONTEXT); }
+	static bool inline IsValid(PinContext *context) { return !(context == 0 || context == INVALID_PIN_CONTEXT || context == NO_MANAGER_CONTEXT); }
 
-	//doesn't make sense to have an accessor for this ones
-	Isolate *isolate;
-	Persistent<Context> context;
+	inline Isolate *GetIsolate() { return isolate; }
+	inline Persistent<Context> &GetContext() { return context; }
+	inline Persistent<Object> &GetGlobal() { return global; }
 
 private:
+	Isolate *isolate;
+	Persistent<Context> context;
+	Persistent<Object> global;
 	THREADID tid;
 	enum ContextState state;
 	PIN_MUTEX lock;
 	PIN_SEMAPHORE changed;
 };
 
+
 typedef std::map<THREADID, PinContext *> ContextsMap;
+typedef std::map<unsigned int, AnalysisFunction *> FunctionsMap;
 class ContextManager {
  public:
 	enum ContextManagerState { RUNNING_MANAGER, ERROR_MANAGER, KILLING_MANAGER, DEAD_MANAGER };
@@ -120,6 +127,9 @@ class ContextManager {
 		Notify();
 	}
 
+	REG inline GetPerThreadContextReg() { return per_thread_context_reg; }
+	REGSET inline GetPreservedRegset() { return preserved_regs; }
+
 	void inline Lock() { PIN_MutexLock(&lock); }
 	void inline Unlock() { PIN_MutexUnlock(&lock); }
 	void inline LockCallbacks() { PIN_MutexLock(&lock_callbacks); }
@@ -131,6 +141,9 @@ class ContextManager {
 			PIN_MutexUnlock(&lock_callbacks);
 		return false;
 	}
+	void inline LockFunctions() { PIN_RWMutexWriteLock(&lock_functions); }
+	void inline UnlockFunctions() { PIN_RWMutexUnlock(&lock_functions); }
+	void inline LockFunctionsRead() { PIN_RWMutexReadLock(&lock_functions); }
 
 
 	//Context Manager thread function
@@ -140,11 +153,11 @@ class ContextManager {
 	void ProcessCallbacks();
 	void ProcessChanges();
 	void KillAllContexts();
-	PinContext *CreateContext(THREADID tid);
+	PinContext *CreateContext(THREADID tid, BOOL waitforit = true);
 	static VOID ProcessCallbacksHelper(VOID *v);
 
 	//API
-	bool EnsurePinContextCallback(THREADID tid, ENSURE_CALLBACK_FUNC *callback, bool create = true);
+	bool EnsurePinContextCallback(THREADID tid, ENSURE_CALLBACK_FUNC *callback, VOID *v, bool create = true);
 	PinContext *EnsurePinContext(THREADID tid, bool create = true);
 
 	//for fast access, this should be equivalent to: TlsGetValue(per_thread_context)
@@ -152,19 +165,33 @@ class ContextManager {
 		return EnsurePinContext(tid, false);
 	}
 	inline PinContext *LoadPinContext() { return LoadPinContext(PIN_ThreadId()); }
+	AnalysisFunction *AddFunction(string body);
+	bool RemoveFunction(unsigned int funcId);
+	AnalysisFunction *ContextManager::GetFunction(unsigned int funcId);
 
  private:
 	ContextManagerState state;
 	Persistent<Context> default_context;
 	ContextsMap contexts;
 	list<EnsureCallback *> callbacks;
+	FunctionsMap functions;
 	PIN_MUTEX lock;
 	PIN_MUTEX lock_callbacks;
+	PIN_RWMUTEX lock_functions;
 	PIN_SEMAPHORE changed;
 	THREADID tid;
 	PIN_SEMAPHORE ready;
 	TLS_KEY per_thread_context_key;
+	unsigned int last_function_id;
+
+	//Scratch register reserved for PinContext passing for the analysis functions.
+	//make it static to avoid an extra deref.
+	REG per_thread_context_reg;
+
+	//Set of registers known to be preserved by our pintools, the more we can put here the better.
+	REGSET preserved_regs;
 };
+
 
 extern ofstream OutFile;
 extern ofstream DebugFile;
@@ -172,3 +199,66 @@ extern ContextManager *ctxmgr;
 
 VOID AddGenericInstrumentation(VOID *);
 void KillPinTool();
+
+
+typedef std::map<THREADID, Persistent<Function>> FunctionsCacheMap;
+class CACHE_ALIGN AnalysisFunction {
+public:
+	AnalysisFunction(string &_body) :
+		body(_body), num_args(0), enabled(true)
+	{
+		arguments = IARGLIST_Alloc();
+		IARGLIST_AddArguments(arguments, IARG_REG_VALUE, ctxmgr->GetPerThreadContextReg(), \
+			                             IARG_PTR, this, IARG_END);
+	}
+
+	~AnalysisFunction()
+	{
+		ClearFunctionCache();
+		IARGLIST_Free(arguments);
+	}
+
+	void ClearFunctionCache()
+	{
+		FunctionsCacheMap::iterator it;
+
+		for (it=funcache.begin(); it != funcache.end(); it++)
+			if (!it->second.IsEmpty()) {
+				it->second.Dispose();
+			}
+		funcache.clear();
+	}
+
+	Persistent<Function> EnsureFunction(PinContext *context);
+	inline unsigned int GetFuncId() { return funcId; }
+	inline void SetFuncId(unsigned int f) { funcId = f; }
+	inline string &GetBody() { return body; }
+	inline void SetBody(string &_body) {
+		body = _body;
+		ClearFunctionCache();
+	}
+	inline void Enable() { enabled = true; }
+	inline void Disable() { enabled = false; }
+	inline bool IsEnabled() { return enabled; }
+
+	inline uint32_t GetArgumentCount() { return num_args; }
+	IARGLIST GetArguments() { return arguments; }
+
+	template <class T>
+	void AddArgument(IARG_TYPE arg, T argvalue) {
+		IARGLIST_AddArguments(arguments, arg, argvalue, IARG_END);
+		++num_args;
+	}
+	void AddArgument(IARG_TYPE arg) {
+		IARGLIST_AddArguments(arguments, arg, IARG_END);
+		++num_args;
+	}
+
+private:
+	unsigned int funcId;
+	string body;
+	FunctionsCacheMap funcache;
+	IARGLIST arguments;
+	uint32_t num_args;
+	bool enabled;
+};

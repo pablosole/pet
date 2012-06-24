@@ -16,7 +16,6 @@ VOID ContextManager::Run(VOID *_ctx)
 
 	while (true)
 	{
-		DEBUG("wait here until something happens");
 		ctx->Wait();
 
 		//check if we're about to die
@@ -49,12 +48,13 @@ void ContextManager::ProcessCallbacksHelper(VOID *v)
 		EnsureCallback *info = ctx->callbacks.back();
 		ctx->callbacks.pop_back();
 		PinContext *context = ctx->EnsurePinContext(info->tid, info->create);
+		context->WaitIfNotReady();
 
 		if (!PinContext::IsValid(context))
 		{
 			DEBUG("Couldn't ensure a valid context for callback on tid " << info->tid);
 		} else {
-			info->callback(context);
+			info->callback(context, info->data);
 		}
 	}
 	ctx->UnlockCallbacks();
@@ -96,8 +96,6 @@ void ContextManager::ProcessChanges()
 
 			case PinContext::DEAD_CONTEXT:
 			case PinContext::ERROR_CONTEXT:
-				DEBUG("erase context for tid:" << tid);
-
 				//this is a thread that was killed or became erroneous in a previous round, erase it.
 				contexts.erase(it++);
 				delete context;
@@ -139,10 +137,12 @@ void ContextManager::KillAllContexts()
 
 //It's mandatory to check the result of this initialization using IsValid()
 //after construction.
-ContextManager::ContextManager()
+ContextManager::ContextManager() :
+last_function_id(0)
 {
 	if (!PIN_MutexInit(&lock) || 
 		!PIN_MutexInit(&lock_callbacks) || 
+		!PIN_RWMutexInit(&lock_functions) || 
 		!PIN_SemaphoreInit(&changed) || 
 		!PIN_SemaphoreInit(&ready))
 	{
@@ -156,6 +156,29 @@ ContextManager::ContextManager()
 		SetState(ERROR_MANAGER);
 		return;
 	}
+
+	per_thread_context_reg = PIN_ClaimToolRegister();
+	if (!REG_valid(per_thread_context_reg)) {
+		DEBUG("Failed to allocate a scratch register for PinContexts.");
+		SetState(ERROR_MANAGER);
+		return;
+	}
+
+	//calling convention assured preserved regs.
+	REGSET_Clear(preserved_regs);
+	REGSET_Insert(preserved_regs, REG_EBX);
+	REGSET_Insert(preserved_regs, REG_ESI);
+	REGSET_Insert(preserved_regs, REG_EDI);
+	REGSET_Insert(preserved_regs, REG_EBP);
+	REGSET_Insert(preserved_regs, REG_X87);
+	REGSET_Insert(preserved_regs, REG_XMM0);
+	REGSET_Insert(preserved_regs, REG_XMM1);
+	REGSET_Insert(preserved_regs, REG_XMM2);
+	REGSET_Insert(preserved_regs, REG_XMM3);
+	REGSET_Insert(preserved_regs, REG_XMM4);
+	REGSET_Insert(preserved_regs, REG_XMM5);
+	REGSET_Insert(preserved_regs, REG_XMM6);
+	REGSET_Insert(preserved_regs, REG_XMM7);
 
 	//A default context for the instrumentation functions over the default isolate.
 	{
@@ -182,6 +205,7 @@ ContextManager::~ContextManager()
 
 	PIN_MutexFini(&lock);
 	PIN_MutexFini(&lock_callbacks);
+	PIN_RWMutexFini(&lock_functions);
 	PIN_SemaphoreFini(&changed);
 	PIN_SemaphoreFini(&ready);
 	PIN_DeleteThreadDataKey(per_thread_context_key);
@@ -191,14 +215,11 @@ ContextManager::~ContextManager()
 }
 
 //this function returns a new context and adds it to the map of contexts or returns
-//INVALID_PIN_CONTEXT if cannot allocate a new context or
-//EXISTS_PIN_CONTEXT if there's a context for this tid in the map already.
-PinContext *ContextManager::CreateContext(THREADID tid)
+//INVALID_PIN_CONTEXT if it cannot allocate a new context.
+PinContext *ContextManager::CreateContext(THREADID tid, BOOL waitforit)
 {
 	PinContext *context;
 	pair<ContextsMap::iterator, bool> ret;
-
-	DEBUG("CreateContext called");
 
 	context = new PinContext(tid);
 	if (!context)
@@ -211,21 +232,29 @@ PinContext *ContextManager::CreateContext(THREADID tid)
 	if (ret.second == false)
 	{
 		delete context;
-		return EXISTS_PIN_CONTEXT;
+		Lock();
+		context = contexts[tid];
+		Unlock();
+	} else {
+		Notify();
+		if (waitforit) {
+			//wait until the new context is created
+			context->Wait();
+		}
 	}
 
-	DEBUG("waiting for the context manager to wake up");
-	Notify();
+	PIN_SetThreadData(per_thread_context_key, context, tid);
 
-	//wait until the new context is created
-	context->Wait();
-
-	return (context->GetState(true) == PinContext::INITIALIZED_CONTEXT) ? context : INVALID_PIN_CONTEXT;
+	if (context->GetState() == PinContext::INITIALIZED_CONTEXT || \
+		(!waitforit && context->GetState() == PinContext::NEW_CONTEXT))
+		return context;
+	else
+		return INVALID_PIN_CONTEXT;
 }
 
 //This function is used to queue a callback to run whenever the Context Manager is ready to work.
-//The function is executed from an internal thread and it receives a PinContext * as its only argument.
-bool ContextManager::EnsurePinContextCallback(THREADID tid, ENSURE_CALLBACK_FUNC *callback, bool create)
+//The callback is executed from an internal thread and it receives a PinContext * and the VOID *v passed as their arguments.
+bool ContextManager::EnsurePinContextCallback(THREADID tid, ENSURE_CALLBACK_FUNC *callback, VOID *v, bool create)
 {
 	if (!IsRunning())
 		return false;
@@ -233,7 +262,8 @@ bool ContextManager::EnsurePinContextCallback(THREADID tid, ENSURE_CALLBACK_FUNC
 	if (IsReady())
 	{
 		PinContext *context = EnsurePinContext(tid, create);
-		callback(context);
+		context->WaitIfNotReady();
+		callback(context, v);
 		return true;
 	}
 
@@ -241,6 +271,7 @@ bool ContextManager::EnsurePinContextCallback(THREADID tid, ENSURE_CALLBACK_FUNC
 	info->callback = callback;
 	info->tid = tid;
 	info->create = create;
+	info->data = v;
 
 	LockCallbacks();
 	callbacks.push_front(info);
@@ -250,10 +281,8 @@ bool ContextManager::EnsurePinContextCallback(THREADID tid, ENSURE_CALLBACK_FUNC
 	return true;
 }
 
-PinContext *ContextManager::EnsurePinContext(THREADID tid, bool create)
+inline PinContext *ContextManager::EnsurePinContext(THREADID tid, bool create)
 {
-	DEBUG("EnsurePinContext called");
-
 	PinContext *context = static_cast<PinContext *>(PIN_GetThreadData(per_thread_context_key, tid));
 
 	if (!PinContext::IsValid(context) && create) {
@@ -261,8 +290,97 @@ PinContext *ContextManager::EnsurePinContext(THREADID tid, bool create)
 			return NO_MANAGER_CONTEXT;
 
 		context = CreateContext(tid);
-		PIN_SetThreadData(per_thread_context_key, context, tid);
 	}
 
 	return context;
+}
+
+AnalysisFunction *ContextManager::AddFunction(string body)
+{
+	AnalysisFunction *af = new AnalysisFunction(body);
+
+	if (!af)
+		return 0;
+
+	LockFunctions();
+	unsigned int funcId = last_function_id;
+	functions[last_function_id++] = af;
+	UnlockFunctions();
+
+	af->SetFuncId(funcId);
+
+	return af;
+}
+
+bool ContextManager::RemoveFunction(unsigned int funcId)
+{
+	FunctionsMap::iterator it;
+	bool ret=false;
+
+	LockFunctions();
+	it = functions.find(funcId);
+	if (it != functions.end())
+	{
+		AnalysisFunction *af = it->second;
+		functions.erase(it);
+		delete af;
+		ret=true;
+	}
+	UnlockFunctions();
+
+	return ret;
+}
+
+AnalysisFunction *ContextManager::GetFunction(unsigned int funcId)
+{
+	AnalysisFunction *af = 0;
+
+	LockFunctionsRead();
+	FunctionsMap::const_iterator it;
+	it = functions.find(funcId);
+	if (it != functions.end())
+		af = it->second;
+	UnlockFunctions();
+
+	return af;
+}
+
+Persistent<Function> AnalysisFunction::EnsureFunction(PinContext *context)
+{
+	FunctionsCacheMap::const_iterator it;
+
+	it = funcache.find(context->GetTid());
+	if (it != funcache.end())
+		return it->second;
+
+	Isolate::Scope iscope(context->GetIsolate());
+	Locker lock(context->GetIsolate());
+	HandleScope hscope;
+	Context::Scope cscope(context->GetContext());
+
+	Handle<String> source = String::Concat(String::New("__fundef = "), String::New(body.c_str()));
+	Handle<Script> script = Script::Compile(source);
+	if (script.IsEmpty()) {
+		DEBUG("Exception compiling on TID:" << context->GetTid());
+		return Persistent<Function>();
+	}
+	Handle<Value> fun_val = script->Run();
+	if (!fun_val->IsFunction()) {
+		DEBUG("Function body didnt create a function on TID:" << context->GetTid());
+		return Persistent<Function>();
+	}
+
+	Persistent<Function> newfun = Persistent<Function>::New(Handle<Function>::Cast(fun_val));
+
+	//If the function is set with a name (non-anonymous function) make it available globally.
+	Handle<Value> name_val = newfun->GetName();
+	if (!name_val.IsEmpty()) {
+		Handle<String> name(String::Cast(*name_val));
+		context->GetContext()->Global()->Set(name, fun_val);
+	}
+
+	funcache[context->GetTid()] = newfun;
+
+
+	return newfun;
 }
