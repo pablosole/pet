@@ -9,21 +9,21 @@ UINT32 docount(uint32_t argc, PinContext *context, AnalysisFunction *af, ...)
 	if (!af->IsEnabled())
 		return 0;
 
-	Persistent<Function> fun = context->EnsureFunction(af);
-	if (fun.IsEmpty()) {
-		return 0;
-	}
-
 	Isolate::Scope iscope(context->GetIsolate());
 	Locker lock(context->GetIsolate());
 	HandleScope hscope;
 	Context::Scope cscope(context->GetContext());
 
+	Persistent<Function> fun = context->EnsureFunction(af);
+	if (fun.IsEmpty()) {
+		return 0;
+	}
+
 	va_start(argptr, af);
 
-	//malloca allocated from the stack unless the size is >1024
-	//stack allocation is faster than heap and freea becomes basically a NOOP
-	Handle<Value> *argv = reinterpret_cast<Handle<Value> *>(_malloca(sizeof(char *)*argc));
+	//_malloca allocates from the stack unless the size is >1024
+	//stack allocation is faster than heap and in that case _freea becomes basically a NOOP
+	Handle<Value> *argv = reinterpret_cast<Handle<Value> *>(_malloca(sizeof(char *) * argc));
 
 	//XXX: mangle different IARG_TYPEs differently
 	for (uint32_t x=0; x < argc; x++)
@@ -38,6 +38,11 @@ UINT32 docount(uint32_t argc, PinContext *context, AnalysisFunction *af, ...)
 	if (trycatch.HasCaught())
 	{
 		DEBUG("Exception on AF");
+		af->IncException();
+
+		//Disable the function if there's too many exceptions
+		if (af->GetNumExceptions() > af->GetThreshold())
+			af->Disable();
 	}
 
 	_freea(argv);

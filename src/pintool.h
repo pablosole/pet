@@ -209,7 +209,7 @@ void KillPinTool();
 class CACHE_ALIGN AnalysisFunction {
 public:
 	AnalysisFunction(string &_body) :
-		num_args(0), enabled(true)
+		num_args(0), enabled(true), num_exceptions(0), exception_threshold(10)
 	{
 		arguments = IARGLIST_Alloc();
 		IARGLIST_AddArguments(arguments, IARG_REG_VALUE, ctxmgr->GetPerThreadContextReg(), \
@@ -236,6 +236,13 @@ public:
 	inline void Disable() { enabled = false; }
 	inline bool IsEnabled() { return enabled; }
 
+	inline void SetThreshold(uint32_t x) { exception_threshold = x; }
+	inline uint32_t GetThreshold() { return exception_threshold; }
+
+	inline void IncException() { ++num_exceptions; }
+	inline uint32_t GetNumExceptions() { return num_exceptions; }
+	inline void ResetNumExceptions() { num_exceptions = 0; }
+
 	inline uint32_t GetArgumentCount() { return num_args; }
 	IARGLIST GetArguments() { return arguments; }
 
@@ -256,4 +263,6 @@ private:
 	IARGLIST arguments;
 	uint32_t num_args;
 	bool enabled;
+	uint32_t num_exceptions;
+	uint32_t exception_threshold;
 };

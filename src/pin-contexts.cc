@@ -95,21 +95,18 @@ Persistent<Function> PinContext::EnsureFunction(AnalysisFunction *af)
 
 	DEBUG("EnsureFunction hash:" << af->GetHash());
 
-	Isolate::Scope iscope(GetIsolate());
-	Locker lock(GetIsolate());
-	HandleScope hscope;
-	Context::Scope cscope(GetContext());
-
 	Handle<String> source = String::Concat(String::New("__fundef = "), String::New(af->GetBody().c_str()));
 	Handle<Script> script = Script::Compile(source);
 	if (script.IsEmpty()) {
 		DEBUG("Exception compiling on TID:" << GetTid());
+		//If the function is broken, disable the execution of this AF
 		af->Disable();
 		return Persistent<Function>();
 	}
 	Handle<Value> fun_val = script->Run();
 	if (!fun_val->IsFunction()) {
 		DEBUG("Function body didnt create a function on TID:" << GetTid());
+		//If the function is broken, disable the execution of this AF
 		af->Disable();
 		return Persistent<Function>();
 	}
