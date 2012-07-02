@@ -1,5 +1,7 @@
 #include "pintool.h"
 
+Persistent<Function> AnalysisFunctionFastCache[kFastCacheSize];
+
 bool PinContext::CreateJSContext()
 {
 	DEBUG("create new context for tid:" << tid);
@@ -57,6 +59,15 @@ void PinContext::DestroyJSContext()
 			if (!context.IsEmpty())
 			{
 				V8::TerminateExecution(isolate);
+
+				for (int x=0; x <= kFastCacheMaxFuncId; x++) {
+					Persistent<Function> tmp = AnalysisFunctionFastCache[GetFastCacheIndex(x)];
+					if (!tmp.IsEmpty()) {
+						tmp.Dispose();
+						tmp.Clear();
+					}
+				}
+
 				context.Dispose();
 				context.Clear();
 				V8::ContextDisposedNotification();
@@ -86,6 +97,18 @@ VOID PinContext::ThreadInfoDestructor(VOID *v)
 }
 
 Persistent<Function> PinContext::EnsureFunction(AnalysisFunction *af)
+{
+	//Encode tid and funcid info and see if it fits in the fast cache, go the slow way if not.
+	unsigned int index = GetFastCacheIndex(af->GetFuncId());
+	if (index != kInvalidFastCacheIndex) {
+		Persistent<Function> tmp = AnalysisFunctionFastCache[index];
+		if (!tmp.IsEmpty())
+			return tmp;
+	}
+	return EnsureFunctionSlow(af);
+}
+
+Persistent<Function> PinContext::EnsureFunctionSlow(AnalysisFunction *af)
 {
 	FunctionsCacheMap::const_iterator it;
 
@@ -121,6 +144,9 @@ Persistent<Function> PinContext::EnsureFunction(AnalysisFunction *af)
 	}
 
 	funcache[af->GetHash()] = newfun;
+	unsigned int index = GetFastCacheIndex(af->GetFuncId());
+	if (index != kInvalidFastCacheIndex)
+		AnalysisFunctionFastCache[index] = newfun;
 
 	return newfun;
 }

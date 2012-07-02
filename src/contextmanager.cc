@@ -140,6 +140,8 @@ void ContextManager::KillAllContexts()
 ContextManager::ContextManager() :
 last_function_id(0)
 {
+	SetPerformanceCounter();
+
 	if (!PIN_MutexInit(&lock) || 
 		!PIN_MutexInit(&lock_callbacks) || 
 		!PIN_RWMutexInit(&lock_functions) || 
@@ -200,6 +202,12 @@ last_function_id(0)
 
 ContextManager::~ContextManager()
 {
+	WINDOWS::LARGE_INTEGER diff;
+	WINDOWS::LARGE_INTEGER freq;
+	GetPerformanceCounterDiff(&diff);
+	WINDOWS::QueryPerformanceFrequency(&freq);
+	DEBUG("Enlapsed time inside ContextManager (secs -- ticks): " << std::setprecision(6) << ((double)diff.QuadPart / (double)freq.QuadPart) << " -- " << diff.QuadPart );
+
 	if (GetState() == ERROR_MANAGER)
 		return;
 
@@ -358,4 +366,15 @@ uint32_t AnalysisFunction::HashBody()
 		hash = hash * 101 + *s++;
 
 	return hash;
+}
+
+bool ContextManager::GetPerformanceCounterDiff(WINDOWS::LARGE_INTEGER *out)
+{
+	WINDOWS::LARGE_INTEGER tmp;
+	if (!WINDOWS::QueryPerformanceCounter(&tmp))
+		return false;
+
+	out->QuadPart = tmp.QuadPart - performancecounter_start.QuadPart;
+
+	return true;
 }

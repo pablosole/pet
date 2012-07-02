@@ -17,6 +17,7 @@ namespace i = v8::internal;
 #include <fstream>
 #include <sstream>
 #include <list>
+#include <iomanip>
 
 #define DEBUG(m) do { \
 DebugFile << m << endl; \
@@ -30,6 +31,14 @@ cerr.flush(); \
 
 class PinContext;
 class AnalysisFunction;
+//Use 4 bits for TID and 8 bits for function id
+//That give us a fast access cache for the first 256 functions over the first 16 threads.
+const int kFastCacheMaxTid = 15;
+const int kFastCacheMaxFuncId = 255;
+const int kFastCacheTidShift = 8;
+const int kFastCacheSize = (kFastCacheMaxFuncId | (kFastCacheMaxTid << kFastCacheTidShift)) + 1;
+const unsigned int kInvalidFastCacheIndex = -1;
+extern Persistent<Function> AnalysisFunctionFastCache[kFastCacheSize];
 
 typedef VOID ENSURE_CALLBACK_FUNC(PinContext * arg, VOID *v);
 struct EnsureCallback {
@@ -90,6 +99,12 @@ public:
 	inline Persistent<Context> &GetContext() { return context; }
 	inline Persistent<Object> &GetGlobal() { return global; }
 	Persistent<Function> PinContext::EnsureFunction(AnalysisFunction *af);
+	Persistent<Function> PinContext::EnsureFunctionSlow(AnalysisFunction *af);
+	inline unsigned int GetFastCacheIndex(unsigned int funcId) {
+		if (funcId > kFastCacheMaxFuncId || GetTid() > kFastCacheMaxTid)
+			return kInvalidFastCacheIndex;
+		return funcId | (GetTid() << kFastCacheTidShift);
+	}
 
 private:
 	Isolate *isolate;
@@ -132,6 +147,9 @@ class ContextManager {
 
 	REG inline GetPerThreadContextReg() { return per_thread_context_reg; }
 	REGSET inline GetPreservedRegset() { return preserved_regs; }
+
+	void inline SetPerformanceCounter() { WINDOWS::QueryPerformanceCounter(&performancecounter_start); }
+	bool GetPerformanceCounterDiff(WINDOWS::LARGE_INTEGER *out);
 
 	void inline Lock() { PIN_MutexLock(&lock); }
 	void inline Unlock() { PIN_MutexUnlock(&lock); }
@@ -195,6 +213,8 @@ class ContextManager {
 
 	//Set of registers known to be preserved by our pintools, the more we can put here the better.
 	REGSET preserved_regs;
+
+	WINDOWS::LARGE_INTEGER performancecounter_start;
 };
 
 
@@ -222,7 +242,6 @@ public:
 		IARGLIST_Free(arguments);
 	}
 
-	Persistent<Function> EnsureFunction(PinContext *context);
 	inline unsigned int GetFuncId() { return funcId; }
 	inline void SetFuncId(unsigned int f) { funcId = f; }
 	inline unsigned int GetHash() { return hash; }
@@ -266,3 +285,4 @@ private:
 	uint32_t num_exceptions;
 	uint32_t exception_threshold;
 };
+

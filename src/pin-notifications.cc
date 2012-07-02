@@ -6,6 +6,7 @@ UINT32 docount(uint32_t argc, PinContext *context, AnalysisFunction *af, ...)
 {
 	va_list argptr;
 
+	//bailout before doing anything else
 	if (!af->IsEnabled())
 		return 0;
 
@@ -41,7 +42,7 @@ UINT32 docount(uint32_t argc, PinContext *context, AnalysisFunction *af, ...)
 		af->IncException();
 
 		//Disable the function if there's too many exceptions
-		if (af->GetNumExceptions() > af->GetThreshold())
+		if (af->GetNumExceptions() > af->GetThreshold() || !trycatch.CanContinue())
 			af->Disable();
 	}
 
