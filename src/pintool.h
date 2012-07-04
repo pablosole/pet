@@ -288,6 +288,7 @@ public:
 
 	inline bool ArgsAreFixed() { return args_fixed; }
 	inline void FixArgs() { args_fixed = true; }
+	//XXX: If I implement PIN_RemoveInstrumentation I should make all AFs 'arguments R/W again.
 
 	inline uint32_t GetArgumentCount() { return num_args; }
 	IARGLIST GetArguments() { return arguments; }

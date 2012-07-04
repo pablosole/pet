@@ -234,6 +234,7 @@ ContextManager::~ContextManager()
 
 	V8::TerminateExecution();
 	default_context.Dispose();
+	shareddata_context.Dispose();
 }
 
 //this function returns a new context and adds it to the map of contexts or returns
