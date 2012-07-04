@@ -17,9 +17,6 @@ bool PinContext::CreateJSContext()
 
 		context = Context::New();
 
-		//inform PinContext class in case we need it from a javascript related function
-		isolate->SetData(this);
-
 		//this is the "receiver" argument for Invoke, it's the "this" of the function called
 		HandleScope hscope;
 		Context::Scope cscope(context);
@@ -118,17 +115,24 @@ Persistent<Function> PinContext::EnsureFunctionSlow(AnalysisFunction *af)
 
 	DEBUG("EnsureFunction hash:" << af->GetHash());
 
-	Handle<String> source = String::Concat(String::New("__fundef = "), String::New(af->GetBody().c_str()));
+	HandleScope scope;
+	Handle<String> source = String::Concat(String::Concat(String::New("("), String::New(af->GetBody().c_str())), String::New(")"));
+
+	TryCatch trycatch;
 	Handle<Script> script = Script::Compile(source);
-	if (script.IsEmpty()) {
+	if (trycatch.HasCaught()) {
 		DEBUG("Exception compiling on TID:" << GetTid());
+		af->SetLastException(ReportExceptionToString(&trycatch));
+		DEBUG(af->GetLastException());
 		//If the function is broken, disable the execution of this AF
 		af->Disable();
 		return Persistent<Function>();
 	}
+
 	Handle<Value> fun_val = script->Run();
 	if (!fun_val->IsFunction()) {
-		DEBUG("Function body didnt create a function on TID:" << GetTid());
+		DEBUG("Function body didn't create a function on TID:" << GetTid());
+		af->SetLastException(string("Function body didn't create a function."));
 		//If the function is broken, disable the execution of this AF
 		af->Disable();
 		return Persistent<Function>();
@@ -141,6 +145,26 @@ Persistent<Function> PinContext::EnsureFunctionSlow(AnalysisFunction *af)
 	if (!name_val.IsEmpty()) {
 		Handle<String> name(String::Cast(*name_val));
 		GetContext()->Global()->Set(name, fun_val);
+	}
+
+	const string& init = af->GetInit();
+	if (!init.empty()) {
+		source = String::New(init.c_str());
+		script = Script::Compile(source);
+		if (trycatch.HasCaught()) {
+			af->SetLastException(ReportExceptionToString(&trycatch));
+			DEBUG(af->GetLastException());
+			//If the function is broken, disable the execution of this AF
+			af->Disable();
+		} else {
+			script->Run();
+			if (trycatch.HasCaught()) {
+				af->SetLastException(ReportExceptionToString(&trycatch));
+				DEBUG(af->GetLastException());
+				//If the function is broken, disable the execution of this AF
+				af->Disable();
+			}
+		}
 	}
 
 	funcache[af->GetHash()] = newfun;

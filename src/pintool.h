@@ -26,11 +26,18 @@ DebugFile.flush(); \
 cerr.flush(); \
 } while (false);
 
+#define DEBUG_NO_NL(m) do { \
+DebugFile << m; \
+cerr << m; \
+} while (false);
+
 #define CACHE_LINE  64
 #define CACHE_ALIGN __declspec(align(CACHE_LINE))
 
 class PinContext;
 class AnalysisFunction;
+class ContextManager;
+
 //Use 4 bits for TID and 8 bits for function id
 //That give us a fast access cache for the first 256 functions over the first 16 threads.
 const int kFastCacheMaxTid = 15;
@@ -50,6 +57,17 @@ struct EnsureCallback {
 
 PinContext * const INVALID_PIN_CONTEXT = reinterpret_cast<PinContext *>(0);
 PinContext * const NO_MANAGER_CONTEXT = reinterpret_cast<PinContext *>(-1);
+
+//global accessible data and functions
+extern ofstream OutFile;
+extern ofstream DebugFile;
+extern ContextManager *ctxmgr;
+
+VOID AddGenericInstrumentation(VOID *);
+void KillPinTool();
+void ReportException (TryCatch* try_catch);
+const string ReportExceptionToString(TryCatch* try_catch);
+Handle<Value> evalOnContext(Isolate *isolate_src, Handle<Context> context_src, Isolate *isolate_dst, Handle<Context> context_dst, const string& source);
 
 //we associate each PinContext with an application thread.
 typedef std::map<uint32_t, Persistent<Function>> FunctionsCacheMap;
@@ -188,13 +206,20 @@ class ContextManager {
 	inline PinContext *LoadPinContext() { return LoadPinContext(PIN_ThreadId()); }
 
 	//AnalysisFunction API
-	AnalysisFunction *AddFunction(string body);
+	AnalysisFunction *AddFunction(const string& body, const string& init=string());
 	bool RemoveFunction(unsigned int funcId);
 	AnalysisFunction *ContextManager::GetFunction(unsigned int funcId);
+
+	//Global and SharedData context manager functions
+	inline Handle<Context> GetDefaultContext() { return default_context; }
+	inline Handle<Context> GetSharedDataContext() { return shareddata_context; }
+	inline Isolate *GetDefaultIsolate() { return default_isolate; }
 
  private:
 	ContextManagerState state;
 	Persistent<Context> default_context;
+	Persistent<Context> shareddata_context;
+	Isolate *default_isolate;
 	ContextsMap contexts;
 	list<EnsureCallback *> callbacks;
 	FunctionsMap functions;
@@ -217,23 +242,17 @@ class ContextManager {
 	WINDOWS::LARGE_INTEGER performancecounter_start;
 };
 
-
-extern ofstream OutFile;
-extern ofstream DebugFile;
-extern ContextManager *ctxmgr;
-
-VOID AddGenericInstrumentation(VOID *);
-void KillPinTool();
-
-
 class CACHE_ALIGN AnalysisFunction {
 public:
-	AnalysisFunction(string &_body) :
-		num_args(0), enabled(true), num_exceptions(0), exception_threshold(10)
+	AnalysisFunction(const string& _body, const string& _init = string()) :
+		num_args(0), 
+		enabled(true),
+		num_exceptions(0),
+		exception_threshold(10),
+		args_fixed(false),
+		init(_init)
 	{
 		arguments = IARGLIST_Alloc();
-		IARGLIST_AddArguments(arguments, IARG_REG_VALUE, ctxmgr->GetPerThreadContextReg(), \
-			                             IARG_PTR, this, IARG_END);
 		SetBody(_body);
 	}
 
@@ -246,11 +265,16 @@ public:
 	inline void SetFuncId(unsigned int f) { funcId = f; }
 	inline unsigned int GetHash() { return hash; }
 	uint32_t HashBody();
-	inline string &GetBody() { return body; }
-	inline void SetBody(string &_body) {
+	inline const string& GetBody() { return body; }
+	inline void SetBody(const string& _body) {
 		body = _body;
 		HashBody();
 	}
+	inline const string& GetInit() { return init; }
+	inline void SetInit(const string& _init) { init = _init; }
+	inline const string& GetLastException() { return last_exception; }
+	inline void SetLastException(const string& _last_exc) { last_exception = _last_exc; }
+
 	inline void Enable() { enabled = true; }
 	inline void Disable() { enabled = false; }
 	inline bool IsEnabled() { return enabled; }
@@ -262,27 +286,37 @@ public:
 	inline uint32_t GetNumExceptions() { return num_exceptions; }
 	inline void ResetNumExceptions() { num_exceptions = 0; }
 
+	inline bool ArgsAreFixed() { return args_fixed; }
+	inline void FixArgs() { args_fixed = true; }
+
 	inline uint32_t GetArgumentCount() { return num_args; }
 	IARGLIST GetArguments() { return arguments; }
 
 	template <class T>
 	void AddArgument(IARG_TYPE arg, T argvalue) {
-		IARGLIST_AddArguments(arguments, arg, argvalue, IARG_END);
-		++num_args;
+		if (!ArgsAreFixed()) {
+			IARGLIST_AddArguments(arguments, arg, argvalue, IARG_END);
+			++num_args;
+		}
 	}
 	void AddArgument(IARG_TYPE arg) {
-		IARGLIST_AddArguments(arguments, arg, IARG_END);
-		++num_args;
+		if (!ArgsAreFixed()) {
+			IARGLIST_AddArguments(arguments, arg, IARG_END);
+			++num_args;
+		}
 	}
 
 private:
 	unsigned int funcId;
 	unsigned int hash;
 	string body;
+	string init;
 	IARGLIST arguments;
 	uint32_t num_args;
+	bool args_fixed;
 	bool enabled;
 	uint32_t num_exceptions;
 	uint32_t exception_threshold;
+	string last_exception;
 };
 

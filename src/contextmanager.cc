@@ -166,7 +166,7 @@ last_function_id(0)
 		return;
 	}
 
-	//calling convention assured preserved regs.
+	//calling convention assured preserved regs. (STDCALL)
 	REGSET_Clear(preserved_regs);
 	REGSET_Insert(preserved_regs, REG_EBX);
 	REGSET_Insert(preserved_regs, REG_ESI);
@@ -183,6 +183,7 @@ last_function_id(0)
 	REGSET_Insert(preserved_regs, REG_XMM7);
 
 	//A default context for the instrumentation functions over the default isolate.
+	//And a diff context used only for eval() over this default isolate from other isolates.
 	{
 		Locker lock;
 		default_context = Context::New();
@@ -191,6 +192,19 @@ last_function_id(0)
 			SetState(ERROR_MANAGER);
 			return;
 		}
+		default_context->SetSecurityToken(Undefined());
+
+		shareddata_context = Context::New();
+		if (shareddata_context.IsEmpty())
+		{
+			SetState(ERROR_MANAGER);
+			return;
+		}
+		shareddata_context->SetSecurityToken(Undefined());
+
+		Locker::StartPreemption(100);
+
+		default_isolate = Isolate::GetCurrent();
 	}
 
 	SetState(RUNNING_MANAGER);
@@ -304,9 +318,9 @@ inline PinContext *ContextManager::EnsurePinContext(THREADID tid, bool create)
 }
 
 
-AnalysisFunction *ContextManager::AddFunction(string body)
+AnalysisFunction *ContextManager::AddFunction(const string &body, const string& init)
 {
-	AnalysisFunction *af = new AnalysisFunction(body);
+	AnalysisFunction *af = new AnalysisFunction(body, init);
 
 	DEBUG("Adding AF with hash:" << af->GetHash());
 
