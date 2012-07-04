@@ -119,9 +119,12 @@ public:
 	Persistent<Function> PinContext::EnsureFunction(AnalysisFunction *af);
 	Persistent<Function> PinContext::EnsureFunctionSlow(AnalysisFunction *af);
 	inline unsigned int GetFastCacheIndex(unsigned int funcId) {
-		if (funcId > kFastCacheMaxFuncId || GetTid() > kFastCacheMaxTid)
+		return GetFastCacheIndex(funcId, GetTid());
+	}
+	static inline unsigned int GetFastCacheIndex(unsigned int funcId, unsigned int tid) {
+		if (funcId > kFastCacheMaxFuncId || tid > kFastCacheMaxTid)
 			return kInvalidFastCacheIndex;
-		return funcId | (GetTid() << kFastCacheTidShift);
+		return funcId | (tid << kFastCacheTidShift);
 	}
 
 private:
@@ -269,6 +272,16 @@ public:
 	inline void SetBody(const string& _body) {
 		body = _body;
 		HashBody();
+
+		if (GetFuncId() <= kFastCacheMaxFuncId) {
+			for (int x=0; x <= kFastCacheMaxTid; x++) {
+				Persistent<Function>& tmp = AnalysisFunctionFastCache[PinContext::GetFastCacheIndex(GetFuncId(), x)];
+				if (!tmp.IsEmpty()) {
+					tmp.Dispose();
+					tmp.Clear();
+				}
+			}
+		}
 	}
 	inline const string& GetInit() { return init; }
 	inline void SetInit(const string& _init) { init = _init; }

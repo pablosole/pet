@@ -57,11 +57,13 @@ void PinContext::DestroyJSContext()
 			{
 				V8::TerminateExecution(isolate);
 
-				for (int x=0; x <= kFastCacheMaxFuncId; x++) {
-					Persistent<Function> tmp = AnalysisFunctionFastCache[GetFastCacheIndex(x)];
-					if (!tmp.IsEmpty()) {
-						tmp.Dispose();
-						tmp.Clear();
+				if (GetTid() <= kFastCacheMaxTid) {
+					for (int x=0; x <= kFastCacheMaxFuncId; x++) {
+						Persistent<Function>& tmp = AnalysisFunctionFastCache[GetFastCacheIndex(x)];
+						if (!tmp.IsEmpty()) {
+							tmp.Dispose();
+							tmp.Clear();
+						}
 					}
 				}
 
