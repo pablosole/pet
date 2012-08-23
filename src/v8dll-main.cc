@@ -4,6 +4,7 @@
 KNOB<string> KnobOutputFile(KNOB_MODE_WRITEONCE, "pintool", "o", "pet-output.log", "specify output file name");
 KNOB<string> KnobDebugFile(KNOB_MODE_WRITEONCE, "pintool", "d", "pet-debug.log", "specify debug file name");
 KNOB<string> KnobV8Options(KNOB_MODE_WRITEONCE, "pintool", "e", "--always_opt --break_on_abort", "v8 engine options");
+KNOB<string> KnobJSFile(KNOB_MODE_WRITEONCE, "pintool", "f", "main.js", "JS file to execute on init");
 
 INT32 Usage()
 {
@@ -44,6 +45,10 @@ int main(int argc, char * argv[])
 		DEBUG("Failed to initialize the Context Manager");
 		return -1;
 	}
+
+	const char *args[2] = { "dummy", KnobJSFile.Value().c_str() };
+
+	sorrow::MainCommonTasks(2, args, ctxmgr->GetDefaultContext());
 
 	if (!WINDOWS::IsDebuggerPresent())
 		PIN_AddInternalExceptionHandler(InternalExceptionHandler, 0);

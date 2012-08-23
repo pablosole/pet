@@ -2,6 +2,12 @@
 #include <stdarg.h>
 #include <malloc.h>
 
+/*
+TODO:
+call V8::AdjustAmountOfExternalAllocatedMemory to adjust when we alloc/free external mem
+*/
+
+
 UINT32 docount(PinContext *context, AnalysisFunction *af, uint32_t argc, ...)
 {
 	va_list argptr;
@@ -108,7 +114,7 @@ VOID OnThreadStart(PinContext *context, VOID *f)
 		HandleScope hscope;
 		Context::Scope cscope(ctxmgr->GetSharedDataContext());
 
-		Handle<Value> ret = evalOnContext(context->GetIsolate(), context->GetContext(), ctxmgr->GetDefaultIsolate(), ctxmgr->GetSharedDataContext(), "yahoo=10;");
+		Handle<Value> ret = evalOnDefaultContext(context, "yahoo=10;");
 		if (!ret.IsEmpty()) {
 			String::Utf8Value ret_str(ret);
 			DEBUG("eval returned: " << *ret_str);

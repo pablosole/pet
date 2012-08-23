@@ -28,6 +28,17 @@ VOID ContextManager::Run(VOID *_ctx)
 	}
 
 	//If we're here, it means our tool is going to die soon, kill all contexts as gracefully as possible.
+
+	//fire the "exit" event before leaving
+	{
+		ctx->GetDefaultIsolate()->Enter();
+		Locker lock(ctx->GetDefaultIsolate());
+		HandleScope hscope;
+		Context::Scope cscope(ctx->GetDefaultContext());
+
+		sorrow::FireExit();
+	}
+
 	ctx->KillAllContexts();
 	delete ctx;
 

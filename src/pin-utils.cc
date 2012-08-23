@@ -2,9 +2,9 @@
 
 //This needs to be exported from the main dll that pin uses. Calling any PIN API is not allowed from a third party DLL.
 //We trick the MSVC linker to override CreateThread with our own version of it (only in the pintool), provided in a separate
-//project (and a separate dll actually) called pin_threading. All it does is to find this export and call to it.
+//project (and a separate dll actually), called pin_threading. All it does is to find this export and call to it.
 //Notice that PIN_SpawnInternalThread doesn't support all options that CreateThread does, but for our use (to support _beginthreadex)
-//is enough.
+//it's enough.
 WINDOWS::HANDLE WINAPI MyCreateThread(
 			WINDOWS::LPSECURITY_ATTRIBUTES lpThreadAttributes,
 			WINDOWS::SIZE_T dwStackSize,
@@ -166,4 +166,29 @@ Handle<Value> evalOnContext(Isolate *isolate_src, Handle<Context> context_src, I
 	}
 
 	return hscope_dst.Close(ret);
+}
+
+Handle<Value> evalOnContext(PinContext *pincontext_src, PinContext *pincontext_dst, const string& source)
+{
+	Isolate *isolate_src = pincontext_src->GetIsolate();
+	Handle<Context> context_src = pincontext_src->GetContext();
+	Isolate *isolate_dst = pincontext_dst->GetIsolate();
+	Handle<Context> context_dst = pincontext_dst->GetContext();
+
+	return evalOnContext(isolate_src, context_src, isolate_dst, context_dst, source);
+}
+
+Handle<Value> evalOnDefaultContext(PinContext *context_src, const string& source)
+{
+	return evalOnContext(context_src->GetIsolate(), context_src->GetContext(), ctxmgr->GetDefaultIsolate(), ctxmgr->GetSharedDataContext(), source);
+}
+
+static void 
+forceGarbageCollection()
+{
+    for (unsigned int i = 0; i < 4096; ++i)
+    {
+        if (v8::V8::IdleNotification())
+            break;
+    }
 }

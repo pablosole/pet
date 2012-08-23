@@ -129,8 +129,8 @@
 				FavorSizeOrSpeed="1"
 				OmitFramePointers="true"
 				WholeProgramOptimization="true"
-				AdditionalIncludeDirectories="../../include/;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\source\include;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\source\include\gen;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\source\tools\InstLib;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\extras\xed2-ia32\include;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\extras\components\include"
-				PreprocessorDefinitions="&quot;_CRT_SECURE_NO_DEPRECATE&quot;;&quot;_CRT_NONSTDC_NO_DEPRECATE&quot;;&quot;ENABLE_DEBUGGER_SUPPORT&quot;;&quot;V8_TARGET_ARCH_IA32&quot;;&quot;WIN32&quot;;&quot;V8_SHARED&quot;;&quot;BUILDING_V8_SHARED&quot;;&quot;USING_V8_SHARED&quot;;TARGET_WINDOWS;BIGARRAY_MULTIPLIER=1;USING_XED;HOST_IA32;TARGET_IA32;_SECURE_SCL=0"
+				AdditionalIncludeDirectories="../../include/;&quot;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\source\include&quot;;&quot;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\source\include\gen&quot;;&quot;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\source\tools\InstLib&quot;;&quot;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\extras\xed2-ia32\include&quot;;&quot;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\extras\components\include&quot;;&quot;$(OutDir)\obj\global_intermediate\&quot;"
+				PreprocessorDefinitions="&quot;_CRT_SECURE_NO_DEPRECATE&quot;;&quot;_CRT_NONSTDC_NO_DEPRECATE&quot;;&quot;ENABLE_DEBUGGER_SUPPORT&quot;;&quot;V8_TARGET_ARCH_IA32&quot;;&quot;WIN32&quot;;&quot;V8_SHARED&quot;;TARGET_WINDOWS;BIGARRAY_MULTIPLIER=1;USING_XED;HOST_IA32;TARGET_IA32;_SECURE_SCL=0"
 				StringPooling="true"
 				MinimalRebuild="false"
 				ExceptionHandling="0"
@@ -158,7 +158,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalOptions="/EXPORT:main /EXPORT:MyCreateThread"
-				AdditionalDependencies="pin.lib libxed.lib libcpmt.lib libcmt.lib pinvm.lib kernel32.lib ntdll-32.lib winmm.lib ws2_32.lib $(NOINHERIT)"
+				AdditionalDependencies="pin.lib libxed.lib libcpmt.lib libcmt.lib pinvm.lib kernel32.lib ntdll-32.lib winmm.lib ws2_32.lib shlwapi.lib $(NOINHERIT)"
 				OutputFile="$(OutDir)\pet.dll"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\ia32\lib;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\ia32\lib-ext;..\..\third_party\pin-2.11-49306-msvc9-ia32_intel64-windows\extras\xed2-ia32\lib"
@@ -211,13 +211,13 @@
 			<Filter
 				Name=".."
 				>
+				<File
+					RelativePath="..\..\src\contextmanager.cc"
+					>
+				</File>
 				<Filter
 					Name="src"
 					>
-					<File
-						RelativePath="..\..\src\contextmanager.cc"
-						>
-					</File>
 					<File
 						RelativePath="..\..\src\pin-contexts.cc"
 						>
@@ -246,7 +246,43 @@
 			</Filter>
 		</Filter>
 		<File
-			RelativePath="v8.gyp"
+			RelativePath="..\..\third_party\sorrow.js\src\sorrow.cpp"
+			>
+		</File>
+		<File
+			RelativePath="..\..\third_party\sorrow.js\src\sorrow.h"
+			>
+		</File>
+		<File
+			RelativePath="..\..\third_party\sorrow.js\src\sorrow_binary.cpp"
+			>
+		</File>
+		<File
+			RelativePath="..\..\third_party\sorrow.js\src\sorrow_bytes.cpp"
+			>
+		</File>
+		<File
+			RelativePath="..\..\third_party\sorrow.js\src\sorrow_bytes.h"
+			>
+		</File>
+		<File
+			RelativePath="..\..\third_party\sorrow.js\src\sorrow_ext.cpp"
+			>
+		</File>
+		<File
+			RelativePath="..\..\third_party\sorrow.js\src\sorrow_fs.cpp"
+			>
+		</File>
+		<File
+			RelativePath="..\..\third_party\sorrow.js\src\sorrow_io.cpp"
+			>
+		</File>
+		<File
+			RelativePath="$(OutDir)\obj\global_intermediate\sorrow_natives.h"
+			>
+		</File>
+		<File
+			RelativePath="..\..\third_party\sorrow.js\src\v8_arrays.cpp"
 			>
 		</File>
 	</Files>

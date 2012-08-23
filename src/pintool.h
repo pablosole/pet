@@ -68,6 +68,8 @@ void KillPinTool();
 void ReportException (TryCatch* try_catch);
 const string ReportExceptionToString(TryCatch* try_catch);
 Handle<Value> evalOnContext(Isolate *isolate_src, Handle<Context> context_src, Isolate *isolate_dst, Handle<Context> context_dst, const string& source);
+Handle<Value> evalOnContext(PinContext *pincontext_src, PinContext *pincontext_dst, const string& source);
+Handle<Value> evalOnDefaultContext(PinContext *context_src, const string& source);
 
 //we associate each PinContext with an application thread.
 typedef std::map<uint32_t, Persistent<Function>> FunctionsCacheMap;
@@ -334,3 +336,7 @@ private:
 	string last_exception;
 };
 
+namespace sorrow {
+	void MainCommonTasks(int argc, const char *argv[], Handle<v8::Context> ctx);
+	void FireExit();
+}

@@ -1,1 +1,162 @@
-<?xml version="1.0" encoding="Windows-1252"?><VisualStudioProject Keyword="Win32Proj" Name="js2c_pin" ProjectGUID="{682B2B4A-9832-E481-00A2-8294F0B58EFE}" ProjectType="Visual C++" RootNamespace="js2c_pin" Version="9.00"><Platforms><Platform Name="Win32"/></Platforms><ToolFiles/><Configurations><Configuration ConfigurationType="10" IntermediateDirectory="$(ConfigurationName)\obj\$(ProjectName)" Name="Debug|Win32" OutputDirectory="$(SolutionDir)$(ConfigurationName)"><Tool AdditionalOptions="/MP" BufferSecurityCheck="true" DebugInformationFormat="3" Detect64BitPortabilityProblems="false" DisableSpecificWarnings="4355;4800" EnableFunctionLevelLinking="true" ExceptionHandling="1" MinimalRebuild="false" Name="VCCLCompilerTool" Optimization="0" PreprocessorDefinitions="&quot;_CRT_SECURE_NO_DEPRECATE&quot;;&quot;_CRT_NONSTDC_NO_DEPRECATE&quot;;&quot;ENABLE_DEBUGGER_SUPPORT&quot;;&quot;V8_TARGET_ARCH_IA32&quot;;&quot;WIN32&quot;;&quot;DEBUG&quot;;&quot;ENABLE_DISASSEMBLER&quot;;&quot;V8_ENABLE_CHECKS&quot;;&quot;OBJECT_PRINT&quot;" ProgramDataBaseFileName="$(IntDir)\$(ProjectName)\vc80.pdb" RuntimeLibrary="3" RuntimeTypeInfo="false" WarnAsError="true" WarningLevel="3"/><Tool Name="VCResourceCompilerTool" PreprocessorDefinitions="&quot;_CRT_SECURE_NO_DEPRECATE&quot;;&quot;_CRT_NONSTDC_NO_DEPRECATE&quot;;&quot;ENABLE_DEBUGGER_SUPPORT&quot;;&quot;V8_TARGET_ARCH_IA32&quot;;&quot;WIN32&quot;;&quot;DEBUG&quot;;&quot;ENABLE_DISASSEMBLER&quot;;&quot;V8_ENABLE_CHECKS&quot;;&quot;OBJECT_PRINT&quot;"/><Tool AdditionalOptions="/ignore:4221" Name="VCLibrarianTool"/><Tool AdditionalDependencies="ws2_32.lib" FixedBaseAddress="1" GenerateDebugInformation="true" ImportLibrary="$(OutDir)\lib\$(TargetName).lib" LinkIncremental="2" MapFileName="$(OutDir)\$(TargetName).map" Name="VCLinkerTool" SubSystem="1"/></Configuration><Configuration CharacterSet="1" ConfigurationType="10" IntermediateDirectory="$(OutDir)\obj\$(ProjectName)" Name="Release|Win32" OutputDirectory="../..\build\$(ConfigurationName)"><Tool AdditionalOptions="/MP" BufferSecurityCheck="true" DebugInformationFormat="3" Detect64BitPortabilityProblems="false" DisableSpecificWarnings="4355;4800" EnableFunctionLevelLinking="true" EnableIntrinsicFunctions="true" ExceptionHandling="1" FavorSizeOrSpeed="0" InlineFunctionExpansion="2" MinimalRebuild="false" Name="VCCLCompilerTool" OmitFramePointers="true" Optimization="2" PreprocessorDefinitions="&quot;_CRT_SECURE_NO_DEPRECATE&quot;;&quot;_CRT_NONSTDC_NO_DEPRECATE&quot;;&quot;ENABLE_DEBUGGER_SUPPORT&quot;;&quot;V8_TARGET_ARCH_IA32&quot;;&quot;WIN32&quot;" ProgramDataBaseFileName="$(IntDir)\$(ProjectName)\vc80.pdb" RuntimeLibrary="2" RuntimeTypeInfo="false" StringPooling="true" WarnAsError="true" WarningLevel="3"/><Tool Name="VCResourceCompilerTool" PreprocessorDefinitions="&quot;_CRT_SECURE_NO_DEPRECATE&quot;;&quot;_CRT_NONSTDC_NO_DEPRECATE&quot;;&quot;ENABLE_DEBUGGER_SUPPORT&quot;;&quot;V8_TARGET_ARCH_IA32&quot;;&quot;WIN32&quot;"/><Tool AdditionalOptions="/ignore:4221" Name="VCLibrarianTool"/><Tool AdditionalDependencies="ws2_32.lib" EnableCOMDATFolding="2" FixedBaseAddress="1" GenerateDebugInformation="true" ImportLibrary="$(OutDir)\lib\$(TargetName).lib" LinkIncremental="1" MapFileName="$(OutDir)\$(TargetName).map" Name="VCLinkerTool" OptimizeReferences="2" SubSystem="1"/></Configuration></Configurations><References/><Files><File RelativePath="v8.gyp"/><Filter Name=".."><Filter Name=".."><Filter Name="src"><Filter Name="_excluded_files"><File RelativePath="..\..\src\date.js"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File><File RelativePath="..\..\src\runtime.js"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File><File RelativePath="..\..\src\json.js"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File><File RelativePath="..\..\src\macros.py"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File><File RelativePath="..\..\src\pin.js"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File><File RelativePath="..\..\src\math.js"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File><File RelativePath="..\..\src\regexp.js"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File><File RelativePath="..\..\src\array.js"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File><File RelativePath="..\..\src\uri.js"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File><File RelativePath="..\..\src\messages.js"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File><File RelativePath="..\..\src\string.js"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File><File RelativePath="..\..\src\mirror-debugger.js"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File><File RelativePath="..\..\src\proxy.js"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File><File RelativePath="..\..\src\liveedit-debugger.js"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File><File RelativePath="..\..\src\collection.js"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File><File RelativePath="..\..\src\debug-debugger.js"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File><File RelativePath="..\..\src\v8natives.js"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File><File RelativePath="..\..\src\apinatives.js"><FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/><FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/></File></Filter></Filter><Filter Name="tools"><Filter Name="_excluded_files"><File RelativePath="..\..\tools\js2c.py"><FileConfiguration Name="Debug|Win32"><Tool AdditionalDependencies="..\..\src\apinatives.js;..\..\src\runtime.js;..\..\src\mirror-debugger.js;..\..\tools\js2c.py;..\..\src\debug-debugger.js;..\..\src\array.js;..\..\src\uri.js;..\..\src\string.js;..\..\src\proxy.js;..\..\src\date.js;..\..\src\liveedit-debugger.js;..\..\src\collection.js;..\..\src\json.js;..\..\src\messages.js;..\..\src\regexp.js;..\..\src\v8natives.js;..\..\src\macros.py;..\..\src\math.js;..\..\src\pin.js" CommandLine="call &quot;$(ProjectDir)..\..\third_party\cygwin\setup_env.bat&quot; &amp;&amp; set CYGWIN=nontsec&amp;&amp; set OUTDIR=$(OutDir)&amp;&amp; bash -c &quot;\&quot;python\&quot; \&quot;../../tools/js2c.py\&quot; \&quot;`cygpath -m \&quot;${OUTDIR}\&quot;`/obj/global_intermediate/libraries.cc\&quot; \&quot;CORE\&quot; \&quot;off\&quot; \&quot;../../src/runtime.js\&quot; \&quot;../../src/v8natives.js\&quot; \&quot;../../src/array.js\&quot; \&quot;../../src/string.js\&quot; \&quot;../../src/uri.js\&quot; \&quot;../../src/math.js\&quot; \&quot;../../src/messages.js\&quot; \&quot;../../src/apinatives.js\&quot; \&quot;../../src/debug-debugger.js\&quot; \&quot;../../src/mirror-debugger.js\&quot; \&quot;../../src/liveedit-debugger.js\&quot; \&quot;../../src/date.js\&quot; \&quot;../../src/json.js\&quot; \&quot;../../src/regexp.js\&quot; \&quot;../../src/pin.js\&quot; \&quot;../../src/macros.py\&quot;&quot;&#xD;&#xA;call &quot;$(ProjectDir)..\..\third_party\cygwin\setup_env.bat&quot; &amp;&amp; set CYGWIN=nontsec&amp;&amp; set OUTDIR=$(OutDir)&amp;&amp; bash -c &quot;\&quot;python\&quot; \&quot;../../tools/js2c.py\&quot; \&quot;`cygpath -m \&quot;${OUTDIR}\&quot;`/obj/global_intermediate/experimental-libraries.cc\&quot; \&quot;EXPERIMENTAL\&quot; \&quot;off\&quot; \&quot;../../src/macros.py\&quot; \&quot;../../src/proxy.js\&quot; \&quot;../../src/collection.js\&quot;&quot;" Description="js2c, and also js2c_experimental" Name="VCCustomBuildTool" Outputs="$(OutDir)\obj\global_intermediate\experimental-libraries.cc;$(OutDir)\obj\global_intermediate\libraries.cc"/></FileConfiguration><FileConfiguration Name="Release|Win32"><Tool AdditionalDependencies="..\..\src\apinatives.js;..\..\src\runtime.js;..\..\src\mirror-debugger.js;..\..\tools\js2c.py;..\..\src\debug-debugger.js;..\..\src\array.js;..\..\src\uri.js;..\..\src\string.js;..\..\src\proxy.js;..\..\src\date.js;..\..\src\liveedit-debugger.js;..\..\src\collection.js;..\..\src\json.js;..\..\src\messages.js;..\..\src\regexp.js;..\..\src\v8natives.js;..\..\src\macros.py;..\..\src\math.js;..\..\pin.js" CommandLine="call &quot;$(ProjectDir)..\..\third_party\cygwin\setup_env.bat&quot; &amp;&amp; set CYGWIN=nontsec&amp;&amp; set OUTDIR=$(OutDir)&amp;&amp; bash -c &quot;\&quot;python\&quot; \&quot;../../tools/js2c.py\&quot; \&quot;`cygpath -m \&quot;${OUTDIR}\&quot;`/obj/global_intermediate/libraries.cc\&quot; \&quot;CORE\&quot; \&quot;off\&quot; \&quot;../../src/runtime.js\&quot; \&quot;../../src/v8natives.js\&quot; \&quot;../../src/array.js\&quot; \&quot;../../src/string.js\&quot; \&quot;../../src/uri.js\&quot; \&quot;../../src/math.js\&quot; \&quot;../../src/messages.js\&quot; \&quot;../../src/apinatives.js\&quot; \&quot;../../src/debug-debugger.js\&quot; \&quot;../../src/mirror-debugger.js\&quot; \&quot;../../src/liveedit-debugger.js\&quot; \&quot;../../src/date.js\&quot; \&quot;../../src/json.js\&quot; \&quot;../../src/regexp.js\&quot; \&quot;../../src/pin.js\&quot; \&quot;../../src/macros.py\&quot;&quot;&#xD;&#xA;call &quot;$(ProjectDir)..\..\third_party\cygwin\setup_env.bat&quot; &amp;&amp; set CYGWIN=nontsec&amp;&amp; set OUTDIR=$(OutDir)&amp;&amp; bash -c &quot;\&quot;python\&quot; \&quot;../../tools/js2c.py\&quot; \&quot;`cygpath -m \&quot;${OUTDIR}\&quot;`/obj/global_intermediate/experimental-libraries.cc\&quot; \&quot;EXPERIMENTAL\&quot; \&quot;off\&quot; \&quot;../../src/macros.py\&quot; \&quot;../../src/proxy.js\&quot; \&quot;../../src/collection.js\&quot;&quot;" Description="js2c, and also js2c_experimental" Name="VCCustomBuildTool" Outputs="$(OutDir)\obj\global_intermediate\experimental-libraries.cc;$(OutDir)\obj\global_intermediate\libraries.cc"/></FileConfiguration></File></Filter></Filter></Filter></Filter></Files><Globals/></VisualStudioProject>
+<?xml version="1.0" encoding="Windows-1252"?>
+<VisualStudioProject Keyword="Win32Proj" Name="js2c_pin" ProjectGUID="{682B2B4A-9832-E481-00A2-8294F0B58EFE}" ProjectType="Visual C++" RootNamespace="js2c_pin" Version="9.00">
+  <Platforms>
+    <Platform Name="Win32"/>
+  </Platforms>
+  <ToolFiles/>
+  <Configurations>
+    <Configuration ConfigurationType="10" IntermediateDirectory="$(ConfigurationName)\obj\$(ProjectName)" Name="Debug|Win32" OutputDirectory="$(SolutionDir)$(ConfigurationName)">
+      <Tool AdditionalOptions="/MP" BufferSecurityCheck="true" DebugInformationFormat="3" Detect64BitPortabilityProblems="false" DisableSpecificWarnings="4355;4800" EnableFunctionLevelLinking="true" ExceptionHandling="1" MinimalRebuild="false" Name="VCCLCompilerTool" Optimization="0" PreprocessorDefinitions="&quot;_CRT_SECURE_NO_DEPRECATE&quot;;&quot;_CRT_NONSTDC_NO_DEPRECATE&quot;;&quot;ENABLE_DEBUGGER_SUPPORT&quot;;&quot;V8_TARGET_ARCH_IA32&quot;;&quot;WIN32&quot;;&quot;DEBUG&quot;;&quot;ENABLE_DISASSEMBLER&quot;;&quot;V8_ENABLE_CHECKS&quot;;&quot;OBJECT_PRINT&quot;" ProgramDataBaseFileName="$(IntDir)\$(ProjectName)\vc80.pdb" RuntimeLibrary="3" RuntimeTypeInfo="false" WarnAsError="true" WarningLevel="3"/>
+      <Tool Name="VCResourceCompilerTool" PreprocessorDefinitions="&quot;_CRT_SECURE_NO_DEPRECATE&quot;;&quot;_CRT_NONSTDC_NO_DEPRECATE&quot;;&quot;ENABLE_DEBUGGER_SUPPORT&quot;;&quot;V8_TARGET_ARCH_IA32&quot;;&quot;WIN32&quot;;&quot;DEBUG&quot;;&quot;ENABLE_DISASSEMBLER&quot;;&quot;V8_ENABLE_CHECKS&quot;;&quot;OBJECT_PRINT&quot;"/>
+      <Tool AdditionalOptions="/ignore:4221" Name="VCLibrarianTool"/>
+      <Tool AdditionalDependencies="ws2_32.lib" FixedBaseAddress="1" GenerateDebugInformation="true" ImportLibrary="$(OutDir)\lib\$(TargetName).lib" LinkIncremental="2" MapFileName="$(OutDir)\$(TargetName).map" Name="VCLinkerTool" SubSystem="1"/>
+    </Configuration>
+    <Configuration CharacterSet="1" ConfigurationType="10" IntermediateDirectory="$(OutDir)\obj\$(ProjectName)" Name="Release|Win32" OutputDirectory="../..\build\$(ConfigurationName)">
+      <Tool AdditionalOptions="/MP" BufferSecurityCheck="true" DebugInformationFormat="3" Detect64BitPortabilityProblems="false" DisableSpecificWarnings="4355;4800" EnableFunctionLevelLinking="true" EnableIntrinsicFunctions="true" ExceptionHandling="1" FavorSizeOrSpeed="0" InlineFunctionExpansion="2" MinimalRebuild="false" Name="VCCLCompilerTool" OmitFramePointers="true" Optimization="2" PreprocessorDefinitions="&quot;_CRT_SECURE_NO_DEPRECATE&quot;;&quot;_CRT_NONSTDC_NO_DEPRECATE&quot;;&quot;ENABLE_DEBUGGER_SUPPORT&quot;;&quot;V8_TARGET_ARCH_IA32&quot;;&quot;WIN32&quot;" ProgramDataBaseFileName="$(IntDir)\$(ProjectName)\vc80.pdb" RuntimeLibrary="2" RuntimeTypeInfo="false" StringPooling="true" WarnAsError="true" WarningLevel="3"/>
+      <Tool Name="VCResourceCompilerTool" PreprocessorDefinitions="&quot;_CRT_SECURE_NO_DEPRECATE&quot;;&quot;_CRT_NONSTDC_NO_DEPRECATE&quot;;&quot;ENABLE_DEBUGGER_SUPPORT&quot;;&quot;V8_TARGET_ARCH_IA32&quot;;&quot;WIN32&quot;"/>
+      <Tool AdditionalOptions="/ignore:4221" Name="VCLibrarianTool"/>
+      <Tool AdditionalDependencies="ws2_32.lib" EnableCOMDATFolding="2" FixedBaseAddress="1" GenerateDebugInformation="true" ImportLibrary="$(OutDir)\lib\$(TargetName).lib" LinkIncremental="1" MapFileName="$(OutDir)\$(TargetName).map" Name="VCLinkerTool" OptimizeReferences="2" SubSystem="1"/>
+    </Configuration>
+  </Configurations>
+  <References/>
+  <Files>
+    <File RelativePath="v8.gyp"/>
+    <Filter Name="..">
+      <Filter Name="..">
+        <Filter Name="src">
+          <Filter Name="_excluded_files">
+            <File RelativePath="..\..\src\date.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\src\runtime.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\src\json.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\src\macros.py">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\src\math.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\src\regexp.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\src\array.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\src\uri.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\src\messages.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\src\string.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\src\mirror-debugger.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\src\proxy.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\src\liveedit-debugger.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\src\collection.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\src\debug-debugger.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\src\v8natives.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\src\apinatives.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\src\pin.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\third_party\sorrow.js\lib\assert.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\third_party\sorrow.js\lib\binary.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\third_party\sorrow.js\lib\console.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\third_party\sorrow.js\lib\event.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\third_party\sorrow.js\lib\fs.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\third_party\sorrow.js\lib\io.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\third_party\sorrow.js\lib\module.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\third_party\sorrow.js\lib\plugins.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\third_party\sorrow.js\lib\system.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\third_party\sorrow.js\lib\util.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+            <File RelativePath="..\..\third_party\sorrow.js\src\sorrow.js">
+              <FileConfiguration ExcludedFromBuild="true" Name="Debug|Win32"/>
+              <FileConfiguration ExcludedFromBuild="true" Name="Release|Win32"/>
+            </File>
+          </Filter>
+        </Filter>
+        <Filter Name="tools">
+          <Filter Name="_excluded_files">
+            <File RelativePath="..\..\tools\js2c.py">
+              <FileConfiguration Name="Debug|Win32">
+                <Tool AdditionalDependencies="..\..\third_party\sorrow.js\lib\assert.js;..\..\third_party\sorrow.js\lib\binary.js;..\..\third_party\sorrow.js\lib\console.js;..\..\third_party\sorrow.js\lib\event.js;..\..\third_party\sorrow.js\lib\fs.js;..\..\third_party\sorrow.js\lib\io.js;..\..\third_party\sorrow.js\lib\module.js;..\..\third_party\sorrow.js\lib\plugins.js;..\..\third_party\sorrow.js\lib\system.js;..\..\third_party\sorrow.js\lib\util.js;..\..\third_party\sorrow.js\src\sorrow.js;..\..\src\apinatives.js;..\..\src\runtime.js;..\..\src\mirror-debugger.js;..\..\tools\js2c.py;..\..\src\debug-debugger.js;..\..\src\array.js;..\..\src\uri.js;..\..\src\string.js;..\..\src\proxy.js;..\..\src\date.js;..\..\src\liveedit-debugger.js;..\..\src\collection.js;..\..\src\json.js;..\..\src\messages.js;..\..\src\regexp.js;..\..\src\v8natives.js;..\..\src\macros.py;..\..\src\math.js;..\..\src\pin.js" CommandLine="call &quot;$(ProjectDir)..\..\third_party\cygwin\setup_env.bat&quot; &amp;&amp; set CYGWIN=nontsec&amp;&amp; set OUTDIR=$(OutDir)&amp;&amp; bash -c &quot;\&quot;python\&quot; \&quot;../../tools/js2c.py\&quot; \&quot;`cygpath -m \&quot;${OUTDIR}\&quot;`/obj/global_intermediate/libraries.cc\&quot; \&quot;CORE\&quot; \&quot;off\&quot; \&quot;../../src/runtime.js\&quot; \&quot;../../src/v8natives.js\&quot; \&quot;../../src/array.js\&quot; \&quot;../../src/string.js\&quot; \&quot;../../src/uri.js\&quot; \&quot;../../src/math.js\&quot; \&quot;../../src/messages.js\&quot; \&quot;../../src/apinatives.js\&quot; \&quot;../../src/debug-debugger.js\&quot; \&quot;../../src/mirror-debugger.js\&quot; \&quot;../../src/liveedit-debugger.js\&quot; \&quot;../../src/date.js\&quot; \&quot;../../src/json.js\&quot; \&quot;../../src/regexp.js\&quot; \&quot;../../src/pin.js\&quot; \&quot;../../src/macros.py\&quot;&quot;&#xD;&#xA;call &quot;$(ProjectDir)..\..\third_party\cygwin\setup_env.bat&quot; &amp;&amp; set CYGWIN=nontsec&amp;&amp; set OUTDIR=$(OutDir)&amp;&amp; bash -c &quot;\&quot;python\&quot; \&quot;../../tools/js2c.py\&quot; \&quot;`cygpath -m \&quot;${OUTDIR}\&quot;`/obj/global_intermediate/experimental-libraries.cc\&quot; \&quot;EXPERIMENTAL\&quot; \&quot;off\&quot; \&quot;../../src/macros.py\&quot; \&quot;../../src/proxy.js\&quot; \&quot;../../src/collection.js\&quot;&quot;&#xD;&#xA;call &quot;$(ProjectDir)..\..\third_party\cygwin\setup_env.bat&quot; &amp;&amp; set CYGWIN=nontsec&amp;&amp; set OUTDIR=$(OutDir)&amp;&amp; bash -c &quot;\&quot;python\&quot; \&quot;../../third_party/sorrow.js/tools/js2c.py\&quot; \&quot;`cygpath -m \&quot;${OUTDIR}\&quot;`/obj/global_intermediate/sorrow_natives.h\&quot; \&quot;../../third_party/sorrow.js/src/sorrow.js\&quot; \&quot;../../third_party/sorrow.js/lib/assert.js\&quot; \&quot;../../third_party/sorrow.js/lib/binary.js\&quot; \&quot;../../third_party/sorrow.js/lib/console.js\&quot; \&quot;../../third_party/sorrow.js/lib/event.js\&quot; \&quot;../../third_party/sorrow.js/lib/fs.js\&quot; \&quot;../../third_party/sorrow.js/lib/io.js\&quot; \&quot;../../third_party/sorrow.js/lib/module.js\&quot; \&quot;../../third_party/sorrow.js/lib/plugins.js\&quot; \&quot;../../third_party/sorrow.js/lib/system.js\&quot; \&quot;../../third_party/sorrow.js/lib/util.js\&quot;&quot;" Description="js2c, and also js2c_experimental" Name="VCCustomBuildTool" Outputs="$(OutDir)\obj\global_intermediate\experimental-libraries.cc;$(OutDir)\obj\global_intermediate\libraries.cc;$(OutDir)\obj\global_intermediate\sorrow_natives.h"/>
+              </FileConfiguration>
+              <FileConfiguration Name="Release|Win32">
+                <Tool AdditionalDependencies="..\..\third_party\sorrow.js\lib\assert.js;..\..\third_party\sorrow.js\lib\binary.js;..\..\third_party\sorrow.js\lib\console.js;..\..\third_party\sorrow.js\lib\event.js;..\..\third_party\sorrow.js\lib\fs.js;..\..\third_party\sorrow.js\lib\io.js;..\..\third_party\sorrow.js\lib\module.js;..\..\third_party\sorrow.js\lib\plugins.js;..\..\third_party\sorrow.js\lib\system.js;..\..\third_party\sorrow.js\lib\util.js;..\..\third_party\sorrow.js\src\sorrow.js;..\..\src\apinatives.js;..\..\src\runtime.js;..\..\src\mirror-debugger.js;..\..\tools\js2c.py;..\..\src\debug-debugger.js;..\..\src\array.js;..\..\src\uri.js;..\..\src\string.js;..\..\src\proxy.js;..\..\src\date.js;..\..\src\liveedit-debugger.js;..\..\src\collection.js;..\..\src\json.js;..\..\src\messages.js;..\..\src\regexp.js;..\..\src\v8natives.js;..\..\src\macros.py;..\..\src\math.js;..\..\src\pin.js" CommandLine="call &quot;$(ProjectDir)..\..\third_party\cygwin\setup_env.bat&quot; &amp;&amp; set CYGWIN=nontsec&amp;&amp; set OUTDIR=$(OutDir)&amp;&amp; bash -c &quot;\&quot;python\&quot; \&quot;../../tools/js2c.py\&quot; \&quot;`cygpath -m \&quot;${OUTDIR}\&quot;`/obj/global_intermediate/libraries.cc\&quot; \&quot;CORE\&quot; \&quot;off\&quot; \&quot;../../src/runtime.js\&quot; \&quot;../../src/v8natives.js\&quot; \&quot;../../src/array.js\&quot; \&quot;../../src/string.js\&quot; \&quot;../../src/uri.js\&quot; \&quot;../../src/math.js\&quot; \&quot;../../src/messages.js\&quot; \&quot;../../src/apinatives.js\&quot; \&quot;../../src/debug-debugger.js\&quot; \&quot;../../src/mirror-debugger.js\&quot; \&quot;../../src/liveedit-debugger.js\&quot; \&quot;../../src/date.js\&quot; \&quot;../../src/json.js\&quot; \&quot;../../src/regexp.js\&quot; \&quot;../../src/pin.js\&quot; \&quot;../../src/macros.py\&quot;&quot;&#xD;&#xA;call &quot;$(ProjectDir)..\..\third_party\cygwin\setup_env.bat&quot; &amp;&amp; set CYGWIN=nontsec&amp;&amp; set OUTDIR=$(OutDir)&amp;&amp; bash -c &quot;\&quot;python\&quot; \&quot;../../tools/js2c.py\&quot; \&quot;`cygpath -m \&quot;${OUTDIR}\&quot;`/obj/global_intermediate/experimental-libraries.cc\&quot; \&quot;EXPERIMENTAL\&quot; \&quot;off\&quot; \&quot;../../src/macros.py\&quot; \&quot;../../src/proxy.js\&quot; \&quot;../../src/collection.js\&quot;&quot;&#xD;&#xA;call &quot;$(ProjectDir)..\..\third_party\cygwin\setup_env.bat&quot; &amp;&amp; set CYGWIN=nontsec&amp;&amp; set OUTDIR=$(OutDir)&amp;&amp; bash -c &quot;\&quot;python\&quot; \&quot;../../third_party/sorrow.js/tools/js2c.py\&quot; \&quot;`cygpath -m \&quot;${OUTDIR}\&quot;`/obj/global_intermediate/sorrow_natives.h\&quot; \&quot;../../third_party/sorrow.js/src/sorrow.js\&quot; \&quot;../../third_party/sorrow.js/lib/assert.js\&quot; \&quot;../../third_party/sorrow.js/lib/binary.js\&quot; \&quot;../../third_party/sorrow.js/lib/console.js\&quot; \&quot;../../third_party/sorrow.js/lib/event.js\&quot; \&quot;../../third_party/sorrow.js/lib/fs.js\&quot; \&quot;../../third_party/sorrow.js/lib/io.js\&quot; \&quot;../../third_party/sorrow.js/lib/module.js\&quot; \&quot;../../third_party/sorrow.js/lib/plugins.js\&quot; \&quot;../../third_party/sorrow.js/lib/system.js\&quot; \&quot;../../third_party/sorrow.js/lib/util.js\&quot;&quot;" Description="js2c, and also js2c_experimental" Name="VCCustomBuildTool" Outputs="$(OutDir)\obj\global_intermediate\experimental-libraries.cc;$(OutDir)\obj\global_intermediate\libraries.cc;$(OutDir)\obj\global_intermediate\sorrow_natives.h"/>
+              </FileConfiguration>
+            </File>
+          </Filter>
+        </Filter>
+      </Filter>
+    </Filter>
+  </Files>
+  <Globals/>
+</VisualStudioProject>
