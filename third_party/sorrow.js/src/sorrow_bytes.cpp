@@ -1,7 +1,6 @@
 #include "sorrow.h"
 #include "sorrow_bytes.h"
 
-#include <iconv.h>
 #include <errno.h>
 
 namespace sorrow {
@@ -31,8 +30,8 @@ namespace sorrow {
     Bytes::Bytes(Handle<Array> array): 
         len(0), bytes(NULL), readonly(false), resizable(true) {
             resize(array->Length(), false);
-            for (int i = 0; i < array->Length(); i++) {
-                uint32_t val = array->Get(i)->IntegerValue();
+            for (uint32_t i = 0; i < array->Length(); i++) {
+                uint32_t val = array->Get(i)->Uint32Value();
                 if (!IS_BYTE(val)) throw "NonByte";
                 this->setByteAt(i, val);
             }
@@ -96,7 +95,7 @@ namespace sorrow {
                 nca += toCopy->getLength();
             } else if (args[i]->IsArray()){
                 Local<Array> array = Array::Cast(*args[i]);
-                for (int i = 0; i < array->Length(); i++) {
+                for (uint32_t i = 0; i < array->Length(); i++) {
                     uint32_t val = array->Get(i)->Uint32Value();
                     if (!IS_BYTE(val)) throw "NonByte";
                     *(nca++) = val;
@@ -118,7 +117,7 @@ namespace sorrow {
     Handle<Array>Bytes::toArray() {
         HandleScope scope;
         Handle<Array> array = Array::New(this->len);
-        for (int i = 0; i < this->len; i++) {
+        for (uint32_t i = 0; i < this->len; i++) {
             uint32_t val = array->Set(i, Integer::New(this->getByteAt(i)));
         }
         return scope.Close(array);
