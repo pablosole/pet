@@ -34,6 +34,14 @@ cerr << m; \
 #define CACHE_LINE  64
 #define CACHE_ALIGN __declspec(align(CACHE_LINE))
 
+#ifndef TRUE
+#define TRUE 1
+#endif
+
+#ifndef FALSE
+#define FALSE 0
+#endif
+
 class PinContext;
 class AnalysisFunction;
 class ContextManager;

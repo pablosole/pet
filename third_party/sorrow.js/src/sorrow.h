@@ -4,7 +4,6 @@
 #define _SORROW_H_
 
 #include <v8.h>
-#include <assert.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>

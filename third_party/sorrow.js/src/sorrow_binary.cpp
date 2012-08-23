@@ -4,6 +4,7 @@
 
 #include "sorrow.h"
 #include "sorrow_bytes.h"
+#include <pintool.h>
 
 namespace sorrow {
 	using namespace v8;
@@ -188,7 +189,7 @@ namespace sorrow {
 	}	
     
     Handle<Value> ByteArrayIndexedGetter(uint32_t index, const AccessorInfo &info) {
-        assert(index >= 0 && index < BYTES_FROM_BIN(info.This())->getLength());
+        ASSERT_PIN(index >= 0 && index < BYTES_FROM_BIN(info.This())->getLength(), "ByteArrayIndexedGetter");
         return Integer::New(BYTES_FROM_BIN(info.This())->getByteAt(index));
     }
     Handle<Value> ByteArrayIndexedSetter(uint32_t index, Local< Value > value, const AccessorInfo &info) {

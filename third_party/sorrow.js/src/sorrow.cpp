@@ -1,11 +1,11 @@
 // copyright 2012 sam l'ecuyer
 #include <v8.h>
-#include <assert.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "sorrow.h"
 #include "sorrow_natives.h"
+#include <pintool.h>
 
 namespace sorrow {
 	using namespace v8;
@@ -24,7 +24,7 @@ namespace sorrow {
 		if (tryCatch.HasCaught() || func == Undefined()) {
 			return;
 		}
-		assert(func->IsFunction());
+		ASSERT_PIN(func->IsFunction(), "FireExit");
 		Local<Function> f = Local<Function>::Cast(func);
         
 		Local<Object> global = Context::GetCurrent()->Global();
@@ -126,7 +126,7 @@ namespace sorrow {
 			ReportException(&tryCatch);
 			exit(10);
 		}
-		assert(func->IsFunction());
+		ASSERT_PIN(func->IsFunction(), "Load");
 		Local<Function> f = Local<Function>::Cast(func);
 		
 		Local<Object> global = Context::GetCurrent()->Global();
