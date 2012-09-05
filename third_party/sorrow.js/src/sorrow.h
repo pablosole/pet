@@ -25,42 +25,50 @@
         return THROW(ERR(V8_STR(#message))) \
     }
 
-#define IS_BINARY(obj) (byteString_t->HasInstance(obj) || byteArray_t->HasInstance(obj))
+#define IS_BINARY(obj) (reinterpret_cast<SorrowContext *>(Context::GetCurrent()->Global()->GetPointerFromInternalField(0))->GetBinaryTypes()->GetByteStringTempl()->HasInstance(obj) || reinterpret_cast<SorrowContext *>(Context::GetCurrent()->Global()->GetPointerFromInternalField(0))->GetBinaryTypes()->GetByteArrayTempl()->HasInstance(obj))
 #define BYTES_FROM_BIN(obj) reinterpret_cast<Bytes*>(obj->GetPointerFromInternalField(0))
 
 namespace sorrow {
 	using namespace v8;
 	
-	Local<Value> ExecuteString(Handle<String> source, Handle<Value> filename);
-	V8_FUNCTN(Quit);
-	V8_FUNCTN(Version);
-	void ReportException(TryCatch* handler);
-	void LoadNativeLibraries(Handle<Object> natives);
-	
-    void InitV8Arrays(Handle<Object> target);
-    
+	/**
+	 * v8_arrays.cpp
+	 */
+	void InitV8Arrays(Handle<Object> target);
+
     /**
      * sorrow_io.cpp
      */
-    namespace IOStreams {
-        void Initialize(Handle<Object> internals);
-    }
-    // Can only be used after streams are setup
-    extern Persistent<Function> rawStream_f;
-    extern Persistent<Function> textStream_f;
+    class IOStreams {
+	public:
+        IOStreams(Handle<Object> internals);
+		~IOStreams();
+
+	private:
+		// Can only be used after streams are setup
+		Persistent<Function> rawStream_f;
+		Persistent<Function> textStream_f;
+    };
     
     
     /**
      * sorrow_binary.cpp
      */
-    namespace BinaryTypes {
-        void Initialize(Handle<Object> internals);
-    }
-    // Can only be used after types are setup
-    extern Persistent<Function> byteString;
-    extern Persistent<Function> byteArray;
-    extern Persistent<FunctionTemplate> byteString_t;
-    extern Persistent<FunctionTemplate> byteArray_t;
+    class BinaryTypes {
+	public:
+        BinaryTypes(Handle<Object> internals);
+		~BinaryTypes();
+		inline Persistent<Function> &GetByteString() { return byteString; }
+		inline Persistent<Function> &GetByteArray() { return byteArray; }
+		inline Persistent<FunctionTemplate> &GetByteStringTempl() { return byteString_t; }
+		inline Persistent<FunctionTemplate> &GetByteArrayTempl() { return byteArray_t; }
+	private:
+		// Can only be used after types are setup
+		Persistent<Function> byteString;
+		Persistent<Function> byteArray;
+		Persistent<FunctionTemplate> byteString_t;
+		Persistent<FunctionTemplate> byteArray_t;
+    };
     
     /**
      * sorrow_fs.cpp
@@ -79,7 +87,26 @@ namespace sorrow {
 	typedef Handle<Object> sp_init();
 	typedef void *sp_destroy();
 
+	/**
+     * sorrow.cpp
+     */
     
+	class SorrowContext {
+	public:
+		SorrowContext(int argc, const char *argv[]);
+		void FireExit();
+		void LoadMain();
+		Handle<Object> SetupInternals(int argc, const char *argv[]);
+		void Load();
+		inline IOStreams *GetIOStreams() { return iostreams; }
+		inline BinaryTypes *GetBinaryTypes() { return binarytypes; }
+	private:
+		Persistent<Object> internals;
+		Persistent<Context> context;
+		Isolate *isolate;
+		IOStreams *iostreams;
+		BinaryTypes *binarytypes;
+	};
 }
 
 #endif // _SORROW_H_

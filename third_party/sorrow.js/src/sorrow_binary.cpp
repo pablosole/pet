@@ -9,10 +9,8 @@
 namespace sorrow {
 	using namespace v8;
 	
-    Persistent<Function> byteString;
-    Persistent<Function> byteArray;
-    Persistent<FunctionTemplate> byteString_t;
-    Persistent<FunctionTemplate> byteArray_t;
+	extern char kArrayBufferMarkerPropName[];
+	const char kRefArrayBufferPropName[] = "_ref_array_buffer_";
     
     /** 
      * Binary functions to be shared between all Binary subclasses
@@ -26,6 +24,10 @@ namespace sorrow {
         return Integer::New(BYTES_FROM_BIN(info.This())->getLength());
     }
     
+    V8_GETTER(BinaryAddressGetter) {
+        return Integer::New(reinterpret_cast<uint32_t>(BYTES_FROM_BIN(info.This())->getBytes()));
+    }
+
 	void ExternalWeakCallback(Persistent<Value> object, void* data) {
         delete reinterpret_cast<Bytes*>(data);
 		object.Dispose();
@@ -65,7 +67,8 @@ namespace sorrow {
 		*/
 
 		Local<Value> bsArgs[1] = { External::New((void*)bytesToUse) };
-		Local<Value> bs = byteString->NewInstance(1, bsArgs);
+		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetPointerFromInternalField(0);
+		Local<Value> bs = ctx->GetBinaryTypes()->GetByteString()->NewInstance(1, bsArgs);
         return scope.Close(bs);
     }
     
@@ -82,7 +85,8 @@ namespace sorrow {
 		*/
 
 		Local<Value> baArgs[1] = { External::New((void*)bytesToUse) };
-		Local<Value> ba = byteArray->NewInstance(1, baArgs);
+		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetPointerFromInternalField(0);
+		Local<Value> ba = ctx->GetBinaryTypes()->GetByteArray()->NewInstance(1, baArgs);
         return scope.Close(ba);
     }
     
@@ -112,6 +116,12 @@ namespace sorrow {
                 } else if (args[0]->IsExternal()) {
                     Bytes *otherBytes = reinterpret_cast<Bytes*>(External::Unwrap(args[0]));
                     bytes = new Bytes(otherBytes);
+                } else if (args[0]->IsObject() &&
+					!args[0]->ToObject()->GetHiddenValue(String::New(kArrayBufferMarkerPropName)).IsEmpty()) {
+					Handle<Object> ea = args[0]->ToObject();
+					bytes = new Bytes(ea->GetIndexedPropertiesExternalArrayDataLength(), \
+						(uint8_t *)ea->GetIndexedPropertiesExternalArrayData(), false);
+					string->SetHiddenValue(String::New(kRefArrayBufferPropName), args[0]);
                 } else{
                     return THROW(TYPE_ERR(V8_STR("Not valid parameters")))
                 }
@@ -130,7 +140,8 @@ namespace sorrow {
         uint8_t byte[1] = { BYTES_FROM_BIN(info.This())->getByteAt(index) };
         Bytes *bytes = new Bytes(1, byte);
 		Local<Value> bsArgs[1] = { External::New((void*)bytes) };
-		Local<Value> bs = byteString->NewInstance(1, bsArgs);
+		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetPointerFromInternalField(0);
+		Local<Value> bs = ctx->GetBinaryTypes()->GetByteString()->NewInstance(1, bsArgs);
         
         return scope.Close(bs);
     }
@@ -140,7 +151,8 @@ namespace sorrow {
         HandleScope scope;
         Bytes *bytes = BYTES_FROM_BIN(args.This())->concat(args);
 		Local<Value> bsArgs[1] = { External::New((void*)bytes) };
-		Local<Value> bs = byteString->NewInstance(1, bsArgs);
+		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetPointerFromInternalField(0);
+		Local<Value> bs = ctx->GetBinaryTypes()->GetByteString()->NewInstance(1, bsArgs);
 
 		return scope.Close(bs);
     }
@@ -152,40 +164,46 @@ namespace sorrow {
     
 	V8_FUNCTN(ByteArray) {
         HandleScope scope;
-        Handle<Object> string = args.This();
+        Handle<Object> bytearray = args.This();
 		Bytes *bytes;
 		int argsLength = args.Length();
         switch (argsLength) {
             case 0: 
-                // ByteString()
+                // ByteArray()
                 bytes = new Bytes();
                 break;
             case 1:
                 if (args[0]->IsNumber()) {
-                    // ByteString(arrayOfNumbers)
+                    // ByteArray(arrayOfNumbers)
                     bytes = new Bytes(args[0]->Uint32Value());
                 } else if (args[0]->IsArray()) {
-                    // ByteString(arrayOfNumbers)
+                    // ByteArray(arrayOfNumbers)
                     Local<Array> array =  Array::Cast(*args[0]);
                     bytes = new Bytes(array);
                 } else if (IS_BINARY(args[0])) {
-                    // ByteString(byteString|byteArray)
+                    // ByteArray(byteString|byteArray)
                     Local<Object> obj = Object::Cast(*args[0]);
                     bytes = new Bytes(BYTES_FROM_BIN(obj));
                 } else if (args[0]->IsExternal()) {
                     Bytes *otherBytes = reinterpret_cast<Bytes*>(External::Unwrap(args[0]));
                     bytes = new Bytes(otherBytes);
-                } else{
+                } else if (args[0]->IsObject() &&
+					!args[0]->ToObject()->GetHiddenValue(String::New(kArrayBufferMarkerPropName)).IsEmpty()) {
+					Handle<Object> ea = args[0]->ToObject();
+					bytes = new Bytes(ea->GetIndexedPropertiesExternalArrayDataLength(), \
+						(uint8_t *)ea->GetIndexedPropertiesExternalArrayData(), false);
+					bytearray->SetHiddenValue(String::New(kRefArrayBufferPropName), args[0]);
+				} else {
                     return THROW(TYPE_ERR(V8_STR("Not valid parameters")))
                 }
                 break;
         }
-		Persistent<Object> persistent_string = Persistent<Object>::New(string);
-		persistent_string.MakeWeak(bytes, ExternalWeakCallback);
-		persistent_string.MarkIndependent();
+		Persistent<Object> persistent_array = Persistent<Object>::New(bytearray);
+		persistent_array.MakeWeak(bytes, ExternalWeakCallback);
+		persistent_array.MarkIndependent();
 		
-		string->SetPointerInInternalField(0, bytes);
-		return string;
+		bytearray->SetPointerInInternalField(0, bytes);
+		return bytearray;
 	}	
     
     Handle<Value> ByteArrayIndexedGetter(uint32_t index, const AccessorInfo &info) {
@@ -208,8 +226,10 @@ namespace sorrow {
     V8_FUNCTN(ByteArrayConcat) {
         HandleScope scope;
         Bytes *bytes = BYTES_FROM_BIN(args.This())->concat(args);
-		Local<Value> bsArgs[1] = { External::New((void*)bytes) };
-		return byteArray->NewInstance(1, bsArgs);
+		Local<Value> baArgs[1] = { External::New((void*)bytes) };
+		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetPointerFromInternalField(0);
+		Local<Value> ba = ctx->GetBinaryTypes()->GetByteArray()->NewInstance(1, baArgs);
+		return scope.Close(ba);
     }
 
 	
@@ -218,8 +238,7 @@ namespace sorrow {
      * Initialization function to assemble the binary types
      */
     
-    namespace BinaryTypes {
-	void Initialize(Handle<Object> internals) {
+	BinaryTypes::BinaryTypes(Handle<Object> internals) {
 		HandleScope scope;
         
 		// function Binary
@@ -239,6 +258,7 @@ namespace sorrow {
         
         SET_METHOD(byteArray_ot, "concat", ByteArrayConcat)
         byteArray_ot->SetAccessor(V8_STR("length"), BinaryLengthGetter, ByteArrayLengthSetter);
+        byteArray_ot->SetAccessor(V8_STR("address"), BinaryAddressGetter);
         byteArray_ot->SetIndexedPropertyHandler(ByteArrayIndexedGetter, ByteArrayIndexedSetter);
         byteArray_ot->SetInternalFieldCount(1);
 		
@@ -260,8 +280,12 @@ namespace sorrow {
         byteString = Persistent<Function>::New(byteString_t->GetFunction());
         byteArray_t->SetClassName(V8_STR("ByteString"));
 		internals->Set(V8_STR("ByteString"), byteString);
-		
-	}
     }
 	
+	BinaryTypes::~BinaryTypes() {
+		byteString.Dispose();
+		byteArray.Dispose();
+		byteString_t.Dispose();
+		byteArray_t.Dispose();
+	}
 }

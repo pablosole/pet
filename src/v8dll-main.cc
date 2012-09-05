@@ -31,9 +31,6 @@ int main(int argc, char * argv[])
 	//Must be executed before ANY v8 function
 	internal::InitializeIsolation();
 
-	//Initialize default isolate
-	V8::Initialize();
-
 	//Just in case we want to mangle with any V8 flag
 	V8::SetFlagsFromString(KnobV8Options.Value().c_str(), KnobV8Options.Value().length());
 	DEBUG("V8Options=" << KnobV8Options.Value());
@@ -46,9 +43,13 @@ int main(int argc, char * argv[])
 		return -1;
 	}
 
-	const char *args[2] = { "dummy", KnobJSFile.Value().c_str() };
+	const char *args[2] = { "dummy", "dummy" };
+	int argsc = 0;
 
-	sorrow::MainCommonTasks(2, args, ctxmgr->GetDefaultContext());
+	if (KnobJSFile.NumberOfValues() > 0) {
+		args[1] = KnobJSFile.Value().c_str();
+		argsc = 2;
+	}
 
 	if (!WINDOWS::IsDebuggerPresent())
 		PIN_AddInternalExceptionHandler(InternalExceptionHandler, 0);
@@ -56,6 +57,8 @@ int main(int argc, char * argv[])
 	PIN_AddApplicationStartFunction(AddGenericInstrumentation, 0);
 
 	PIN_InitSymbols();
+
+	ctxmgr->InitializeSorrowContext(argsc, args);
 
     // Start the program, never returns
     PIN_StartProgram();

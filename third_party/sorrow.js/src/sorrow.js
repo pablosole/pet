@@ -59,15 +59,18 @@
     
     internals.fire = Lib.require('event').fire;
     
-    var Module = Lib.require('module').Module;
-    var io     = Lib.require('io');
-    var args   = internals.args;
+    internals.loadMain = function() {
     
-    if (args.length < 1) {
-        io.stdout.writeLine('there was some input expected.  try it with a file');
-        return;
+      var Module = Lib.require('module').Module;
+      var io     = Lib.require('io');
+      var args   = Lib.require('_impl').args;
+    
+      if (args.length < 1) {
+          io.stdout.writeLine('there was some input expected.  try it with a file');
+          return;
+      }
+    
+      return Module.runProg(args[0]);
     }
-    
-    return Module.runProg(args[0]);
     
 });

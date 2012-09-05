@@ -2,14 +2,12 @@
  copyright 2012 sam l'ecuyer
  */
 
+#include <pintool.h>
 #include "sorrow.h"
 #include "sorrow_bytes.h"
 
 namespace sorrow {
 	using namespace v8;
-    
-    Persistent<Function> rawStream_f;
-    Persistent<Function> textStream_f;
     
 	void ExternalWeakIOCallback(Persistent<Value> object, void* file) {
         fclose((FILE*)file);
@@ -106,7 +104,7 @@ namespace sorrow {
         uint32_t n;
         uint8_t *buffer;
         if (feof(file)) {
-            Local<Value> bs = byteString->NewInstance();
+            Local<Value> bs = reinterpret_cast<SorrowContext *>(Context::GetCurrent()->Global()->GetPointerFromInternalField(0))->GetBinaryTypes()->GetByteString()->NewInstance();
             return scope.Close(bs);
         }
         if (args.Length() == 0) {
@@ -135,7 +133,9 @@ namespace sorrow {
         }
         Bytes *bytes = new Bytes(readBytes, buffer);
 		Local<Value> bsArgs[1] = { External::New((void*)bytes) };
-		Local<Value> bs = byteString->NewInstance(1, bsArgs);
+		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetPointerFromInternalField(0);
+		ASSERT_PIN(ctx, "SorrowContext is NULL");
+		Local<Value> bs = ctx->GetBinaryTypes()->GetByteString()->NewInstance(1, bsArgs);
         delete[] buffer;
         return scope.Close(bs);
 	}
@@ -222,8 +222,7 @@ namespace sorrow {
         return Undefined();
     }
 	
-    namespace IOStreams {
-	void Initialize(Handle<Object> internals) {
+	IOStreams::IOStreams(Handle<Object> internals) {
 		HandleScope scope;
 		
         // Create RawStream type
@@ -268,7 +267,10 @@ namespace sorrow {
         Local<Object> rawErr = rawStream_f->NewInstance(1, rawErrArgs);
         Local<Value> stderrArgs[2] = { rawErr, Object::New() };
 		internals->Set(V8_STR("stderr"), textStream_f->NewInstance(2, stderrArgs));
-	}
     }
 	
+	IOStreams::~IOStreams() {
+		rawStream_f.Dispose();
+		textStream_f.Dispose();
+	}
 }

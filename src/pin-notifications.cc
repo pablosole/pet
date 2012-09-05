@@ -109,7 +109,6 @@ VOID OnThreadStart(PinContext *context, VOID *f)
 	//Add instrumentation just once
 	static bool done = false;
 	if (!done) {
-		ctxmgr->GetDefaultIsolate()->Enter();
 		Locker lock(ctxmgr->GetDefaultIsolate());
 		HandleScope hscope;
 		Context::Scope cscope(ctxmgr->GetSharedDataContext());

@@ -14,19 +14,25 @@ bool PinContext::CreateJSContext()
 		//Enter and lock the new isolate
 		Isolate::Scope iscope(isolate);
 		Locker lock(isolate);
-
-		context = Context::New();
-
-		//this is the "receiver" argument for Invoke, it's the "this" of the function called
 		HandleScope hscope;
-		Context::Scope cscope(context);
-		i::Object** ctx = reinterpret_cast<i::Object**>(*context);
-		i::Handle<i::Context> internal_context = i::Handle<i::Context>::cast(i::Handle<i::Object>(ctx));
-		i::GlobalObject *internal_global = internal_context->global();
-		i::Handle<i::JSObject> receiver(internal_global->global_receiver());
-		Local<Object> receiver_local(Utils::ToLocal(receiver));
-		global = Persistent<Object>::New(receiver_local);
 
+		Handle<ObjectTemplate> global_templ = ObjectTemplate::New();
+		global_templ->SetInternalFieldCount(1);
+
+		context = Context::New(NULL, global_templ);
+
+		if (!context.IsEmpty()) {
+			//this is the "receiver" argument for Invoke, it's the "this" of the function called
+			Context::Scope cscope(context);
+			i::Object** ctx = reinterpret_cast<i::Object**>(*context);
+			i::Handle<i::Context> internal_context = i::Handle<i::Context>::cast(i::Handle<i::Object>(ctx));
+			i::GlobalObject *internal_global = internal_context->global();
+			i::Handle<i::JSObject> receiver(internal_global->global_receiver());
+			Local<Object> receiver_local(Utils::ToLocal(receiver));
+			global = Persistent<Object>::New(receiver_local);
+
+			sorrowctx = new SorrowContext(0, NULL);
+		}
 		//Scope and Locker are destroyed here.
 	}
 
@@ -55,6 +61,8 @@ void PinContext::DestroyJSContext()
 
 			if (!context.IsEmpty())
 			{
+				sorrowctx->FireExit();
+
 				V8::TerminateExecution(isolate);
 
 				if (GetTid() <= kFastCacheMaxTid) {

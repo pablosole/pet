@@ -36,7 +36,7 @@ VOID ContextManager::Run(VOID *_ctx)
 		HandleScope hscope;
 		Context::Scope cscope(ctx->GetDefaultContext());
 
-		sorrow::FireExit();
+		ctx->GetSorrowContext()->FireExit();
 	}
 
 	ctx->KillAllContexts();
@@ -197,7 +197,11 @@ last_function_id(0)
 	//And a diff context used only for eval() over this default isolate from other isolates.
 	{
 		Locker lock;
-		default_context = Context::New();
+		HandleScope hscope;
+
+		Handle<ObjectTemplate> global_templ = ObjectTemplate::New();
+		global_templ->SetInternalFieldCount(1);
+		default_context = Context::New(NULL, global_templ);
 		if (default_context.IsEmpty())
 		{
 			SetState(ERROR_MANAGER);
@@ -205,7 +209,7 @@ last_function_id(0)
 		}
 		default_context->SetSecurityToken(Undefined());
 
-		shareddata_context = Context::New();
+		shareddata_context = Context::New(NULL, global_templ);
 		if (shareddata_context.IsEmpty())
 		{
 			SetState(ERROR_MANAGER);
@@ -214,9 +218,9 @@ last_function_id(0)
 		shareddata_context->SetSecurityToken(Undefined());
 
 		Locker::StartPreemption(100);
-
-		default_isolate = Isolate::GetCurrent();
 	}
+
+	default_isolate = Isolate::GetCurrent();
 
 	SetState(RUNNING_MANAGER);
 	tid = PIN_SpawnInternalThread(Run, this, 0, NULL);
@@ -403,4 +407,21 @@ bool ContextManager::GetPerformanceCounterDiff(WINDOWS::LARGE_INTEGER *out)
 	out->QuadPart = tmp.QuadPart - performancecounter_start.QuadPart;
 
 	return true;
+}
+
+void ContextManager::InitializeSorrowContext(int argc, const char *argv[])
+{
+	{
+		Locker locker;
+		Context::Scope context_scope(GetSharedDataContext());
+		sorrrowctx_shareddata = new SorrowContext(0, NULL);
+	}
+
+	{
+		Locker locker;
+		Context::Scope context_scope(GetDefaultContext());
+		sorrrowctx = new SorrowContext(argc, argv);
+		if (argc)
+			sorrrowctx->LoadMain();
+	}
 }

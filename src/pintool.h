@@ -18,6 +18,8 @@ namespace i = v8::internal;
 #include <sstream>
 #include <list>
 #include <iomanip>
+#include <sorrow.h>
+using namespace sorrow;
 
 #define DEBUG(m) do { \
 DebugFile << m << endl; \
@@ -123,6 +125,7 @@ public:
 
 	static bool inline IsValid(PinContext *context) { return !(context == 0 || context == INVALID_PIN_CONTEXT || context == NO_MANAGER_CONTEXT); }
 
+	inline SorrowContext *GetSorrowContext() { return sorrowctx; }
 	inline Isolate *GetIsolate() { return isolate; }
 	inline Persistent<Context> &GetContext() { return context; }
 	inline Persistent<Object> &GetGlobal() { return global; }
@@ -141,6 +144,7 @@ private:
 	Isolate *isolate;
 	Persistent<Context> context;
 	Persistent<Object> global;
+	SorrowContext *sorrowctx;
 	THREADID tid;
 	enum ContextState state;
 	PIN_MUTEX lock;
@@ -227,11 +231,15 @@ class ContextManager {
 	inline Handle<Context> GetDefaultContext() { return default_context; }
 	inline Handle<Context> GetSharedDataContext() { return shareddata_context; }
 	inline Isolate *GetDefaultIsolate() { return default_isolate; }
+	inline SorrowContext *GetSorrowContext() { return sorrrowctx; }
+	void ContextManager::InitializeSorrowContext(int argc, const char *argv[]);
 
  private:
 	ContextManagerState state;
 	Persistent<Context> default_context;
 	Persistent<Context> shareddata_context;
+	SorrowContext *sorrrowctx;
+	SorrowContext *sorrrowctx_shareddata;
 	Isolate *default_isolate;
 	ContextsMap contexts;
 	list<EnsureCallback *> callbacks;
@@ -343,8 +351,3 @@ private:
 	uint32_t exception_threshold;
 	string last_exception;
 };
-
-namespace sorrow {
-	void MainCommonTasks(int argc, const char *argv[], Handle<v8::Context> ctx);
-	void FireExit();
-}

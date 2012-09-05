@@ -4,19 +4,26 @@
 // so the copyright is kept as v8 with the original license.
 
 #include "sorrow.h"
+#include "sorrow_bytes.h"
 #include <pintool.h>
 
 namespace sorrow {
 	using namespace v8;
 
-	const char kArrayBufferMarkerPropName[] = "_is_array_buffer_";
+	char kArrayBufferMarkerPropName[] = "_is_array_buffer_";
+	const char kRefByteArrayPropName[] = "_ref_byte_array_";
     
     void ExternalArrayWeakCallback(Persistent<Value> object, void* data) {
 		HandleScope scope;
 		int32_t length =
-			object->ToObject()->Get(String::New("byteLength"))->Uint32Value();
-		V8::AdjustAmountOfExternalAllocatedMemory(-length);
-		delete[] static_cast<uint8_t*>(data);
+			object->ToObject()->Get(String::New("byteLength"))->Int32Value();
+		bool external_buffer  =
+			object->ToObject()->Get(String::New("externalBuffer"))->BooleanValue();
+
+		if (!external_buffer) {
+			V8::AdjustAmountOfExternalAllocatedMemory(-length);
+			delete[] static_cast<uint8_t*>(data);
+		}
 		object.Dispose();
     }
     
@@ -51,6 +58,21 @@ namespace sorrow {
         return static_cast<size_t>(raw_value);
     }
 
+	Handle<Value> CreateExternalArrayBuffer(int32_t length, uint8_t *data) {
+	  Handle<Object> buffer = Object::New();
+	  buffer->SetHiddenValue(String::New(kArrayBufferMarkerPropName), True());
+	  Persistent<Object> persistent_array = Persistent<Object>::New(buffer);
+	  persistent_array.MakeWeak(data, ExternalArrayWeakCallback);
+	  persistent_array.MarkIndependent();
+
+	  buffer->SetIndexedPropertiesToExternalArrayData(
+		  data, v8::kExternalByteArray, length);
+	  buffer->Set(String::New("byteLength"), Int32::New(length), ReadOnly);
+	  buffer->Set(String::New("address"), Int32::New(reinterpret_cast<uint32_t>(data)), ReadOnly);
+
+	  return buffer;
+	}
+
 	Handle<Value> CreateExternalArrayBuffer(int32_t length) {
 	  static const int32_t kMaxSize = 0x7fffffff;
 	  // Make sure the total size fits into a (signed) int.
@@ -62,19 +84,24 @@ namespace sorrow {
 		return ThrowException(String::New("Memory allocation failed."));
 	  }
 	  memset(data, 0, length);
-
-	  Handle<Object> buffer = Object::New();
-	  buffer->SetHiddenValue(String::New(kArrayBufferMarkerPropName), True());
-	  Persistent<Object> persistent_array = Persistent<Object>::New(buffer);
-	  persistent_array.MakeWeak(data, ExternalArrayWeakCallback);
-	  persistent_array.MarkIndependent();
 	  V8::AdjustAmountOfExternalAllocatedMemory(length);
 
-	  buffer->SetIndexedPropertiesToExternalArrayData(
-		  data, v8::kExternalByteArray, length);
-	  buffer->Set(String::New("byteLength"), Int32::New(length), ReadOnly);
+	  return CreateExternalArrayBuffer(length, data);
+	}
 
-	  return buffer;
+	Handle<Value> CreateExternalArrayBuffer(Local<Value> ba) {
+		Handle<Value> buffer;
+		Bytes *bytes = BYTES_FROM_BIN(ba->ToObject());
+
+		ASSERT_PIN(bytes, "Cannot create an external buffer from an invalid Bytes object");
+
+		bytes->setResizable(false);
+		buffer = CreateExternalArrayBuffer(bytes->getLength(), bytes->getBytes());
+		
+		buffer->ToObject()->SetHiddenValue(String::New(kRefByteArrayPropName), ba);
+		buffer->ToObject()->Set(String::New("externalBuffer"), True(), ReadOnly);
+
+		return buffer;
 	}
 
 	Handle<Value> CreateExternalArrayBuffer(const Arguments& args) {
@@ -82,6 +109,11 @@ namespace sorrow {
 		return ThrowException(
 			String::New("ArrayBuffer constructor must have one parameter."));
 	  }
+
+	  if (args[0]->IsObject() && IS_BINARY(args[0])) {
+		  return CreateExternalArrayBuffer(args[0]);
+	  }
+
 	  TryCatch try_catch;
 	  int32_t length = convertToUint(args[0], &try_catch);
 	  if (try_catch.HasCaught()) return try_catch.Exception();
@@ -105,17 +137,27 @@ namespace sorrow {
 		int32_t length;
 		int32_t byteLength;
 		int32_t byteOffset;
+		int32_t bufferLength;
+
 		if (args.Length() == 0) {
 		return ThrowException(
 			String::New("Array constructor must have at least one parameter."));
 		}
+
 		if (args[0]->IsObject() &&
-		 !args[0]->ToObject()->GetHiddenValue(
-			 String::New(kArrayBufferMarkerPropName)).IsEmpty()) {
-		buffer = args[0]->ToObject();
-		int32_t bufferLength =
-			convertToUint(buffer->Get(String::New("byteLength")), &try_catch);
-		if (try_catch.HasCaught()) return try_catch.Exception();
+			(!args[0]->ToObject()->GetHiddenValue(String::New(kArrayBufferMarkerPropName)).IsEmpty()) ||
+			(IS_BINARY(args[0]))) {
+				if (!args[0]->ToObject()->GetHiddenValue(String::New(kArrayBufferMarkerPropName)).IsEmpty()) {
+					buffer = args[0]->ToObject();
+					bufferLength = convertToUint(buffer->Get(String::New("byteLength")), &try_catch);
+					if (try_catch.HasCaught())
+						return try_catch.Exception();
+				} else {
+					buffer = CreateExternalArrayBuffer(args[0])->ToObject();
+					bufferLength = convertToUint(buffer->Get(String::New("byteLength")), &try_catch);
+					if (try_catch.HasCaught())
+						return try_catch.Exception();
+				}
 
 		if (args.Length() < 2 || args[1]->IsUndefined()) {
 		  byteOffset = 0;
@@ -139,20 +181,22 @@ namespace sorrow {
 				String::New("buffer size must be multiple of element_size"));
 		  }
 		} else {
-		  length = convertToUint(args[2], &try_catch);
-		  if (try_catch.HasCaught()) return try_catch.Exception();
-		  byteLength = length * element_size;
-		  if (byteOffset + byteLength > bufferLength) {
-			return ThrowException(String::New("length out of bounds"));
-		  }
+			  length = convertToUint(args[2], &try_catch);
+			  if (try_catch.HasCaught())
+				  return try_catch.Exception();
+			  byteLength = length * element_size;
+			  if (byteOffset + byteLength > bufferLength) {
+				  return ThrowException(String::New("length out of bounds"));
+			  }
 		}
 		} else {
-		length = convertToUint(args[0], &try_catch);
-		byteLength = length * element_size;
-		byteOffset = 0;
-		Handle<Value> result = CreateExternalArrayBuffer(byteLength);
-		if (!result->IsObject()) return result;
-		buffer = result->ToObject();
+			length = convertToUint(args[0], &try_catch);
+			byteLength = length * element_size;
+			byteOffset = 0;
+			Handle<Value> result = CreateExternalArrayBuffer(byteLength);
+			if (!result->IsObject())
+				return result;
+			buffer = result->ToObject();
 		}
 
 		void* data = buffer->GetIndexedPropertiesExternalArrayData();
@@ -174,7 +218,53 @@ namespace sorrow {
     Handle<Value> ArrayBuffer(const Arguments& args) {
 		return CreateExternalArrayBuffer(args);
     }
-    
+
+	//by default memory buffers have direct access
+    Handle<Value> MemoryBuffer(const Arguments& args) {
+	  HandleScope scope;
+
+	  if (args.Length() < 2) {
+		return ThrowException(
+			String::New("MemoryBuffer constructor must have two parameters (address and size)."));
+	  }
+
+	  TryCatch try_catch;
+	  uint32_t address = convertToUint(args[0], &try_catch);
+	  uint32_t length = convertToUint(args[1], &try_catch);
+	  uint8_t* data;
+	  bool is_external = false;
+
+	  if (try_catch.HasCaught()) return try_catch.Exception();
+
+	  static const int32_t kMaxSize = 0x7fffffff;
+	  // Make sure the total size fits into a (signed) int.
+	  if (length < 0 || length > kMaxSize) {
+		return ThrowException(String::New("ArrayBuffer exceeds maximum size (2G)"));
+	  }
+
+	  //check if we should snapshot the value
+	  if (args.Length() > 2 && args[2]->IsTrue()) {
+		  data = new uint8_t[length];
+		  if (data == NULL) {
+			return ThrowException(String::New("Memory allocation failed."));
+		  }
+		  V8::AdjustAmountOfExternalAllocatedMemory(length);
+
+		  PIN_SafeCopy(data, reinterpret_cast<uint8_t *>(address), length);
+	  } else {
+		  data = reinterpret_cast<uint8_t *>(address);
+		  is_external = true;
+	  }
+
+	  Handle<Value> buffer = CreateExternalArrayBuffer(length, data);
+	  buffer->ToObject()->Set(String::New("snapshot"), (is_external ? False() : True()), ReadOnly);
+
+	  if (is_external)
+		buffer->ToObject()->Set(String::New("externalBuffer"), True(), ReadOnly);
+
+	  return scope.Close(buffer);
+    }
+
     
     Handle<Value> Int8Array(const Arguments& args) {
         return CreateExternalArray(args, v8::kExternalByteArray, sizeof(int8_t));
@@ -225,6 +315,7 @@ namespace sorrow {
     
     void InitV8Arrays(Handle<Object> target) {
         SET_METHOD(target, "ArrayBuffer",   ArrayBuffer)
+        SET_METHOD(target, "MemoryBuffer",  MemoryBuffer)
         SET_METHOD(target, "Int8Array",     Int8Array)
         SET_METHOD(target, "Uint8Array",    Uint8Array)
         SET_METHOD(target, "Int16Array",    Int16Array)

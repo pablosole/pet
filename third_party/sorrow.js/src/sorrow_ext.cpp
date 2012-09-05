@@ -46,7 +46,7 @@ namespace sorrow {
 		sp_init *initializer = (sp_init*)GetProcAddress(sp_library, "Initialize");
 		if (initializer == NULL) {
 			CloseHandle(sp_library);
-			return THROW(ERR(V8_STR("Initialize function not found")))
+			return THROW(ERR(V8_STR("'Initialize' function not found")))
 		}
 		
 		Persistent<Object> persistent_plugin = Persistent<Object>::New(plugin);
@@ -63,10 +63,10 @@ namespace sorrow {
 		Handle<Object> plugin = args.This();
 		HMODULE sp_library = (HMODULE) plugin->GetPointerFromInternalField(0);
 		sp_destroy *destructor = (sp_destroy*)GetProcAddress(sp_library, "Teardown");
-		if (destructor == NULL) {
-			CloseHandle(sp_library);
+		if (destructor != NULL) {
+			destructor();
 		}
-		destructor();
+		FreeLibrary(sp_library);
         CloseHandle(sp_library);
 		return Undefined();
 	}

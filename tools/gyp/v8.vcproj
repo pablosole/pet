@@ -129,7 +129,7 @@
 				FavorSizeOrSpeed="1"
 				OmitFramePointers="true"
 				WholeProgramOptimization="true"
-				AdditionalIncludeDirectories="../../include/;&quot;..\..\third_party\pin-2.12-53271-msvc9-ia32_intel64-windows\source\include&quot;;&quot;..\..\third_party\pin-2.12-53271-msvc9-ia32_intel64-windows\source\include\gen&quot;;&quot;..\..\third_party\pin-2.12-53271-msvc9-ia32_intel64-windows\source\tools\InstLib&quot;;&quot;..\..\third_party\pin-2.12-53271-msvc9-ia32_intel64-windows\extras\xed2-ia32\include&quot;;&quot;..\..\third_party\pin-2.12-53271-msvc9-ia32_intel64-windows\extras\components\include&quot;;&quot;$(OutDir)\obj\global_intermediate\&quot;"
+				AdditionalIncludeDirectories="../../include/;&quot;..\..\third_party\pin-2.12-53271-msvc9-ia32_intel64-windows\source\include&quot;;&quot;..\..\third_party\pin-2.12-53271-msvc9-ia32_intel64-windows\source\include\gen&quot;;&quot;..\..\third_party\pin-2.12-53271-msvc9-ia32_intel64-windows\source\tools\InstLib&quot;;&quot;..\..\third_party\pin-2.12-53271-msvc9-ia32_intel64-windows\extras\xed2-ia32\include&quot;;&quot;..\..\third_party\pin-2.12-53271-msvc9-ia32_intel64-windows\extras\components\include&quot;;&quot;$(OutDir)\obj\global_intermediate\&quot;;../../src/;..\..\third_party\sorrow.js\src\"
 				PreprocessorDefinitions="&quot;_CRT_SECURE_NO_DEPRECATE&quot;;&quot;_CRT_NONSTDC_NO_DEPRECATE&quot;;&quot;ENABLE_DEBUGGER_SUPPORT&quot;;&quot;V8_TARGET_ARCH_IA32&quot;;&quot;WIN32&quot;;&quot;V8_SHARED&quot;;TARGET_WINDOWS;BIGARRAY_MULTIPLIER=1;USING_XED;HOST_IA32;TARGET_IA32;_SECURE_SCL=0"
 				StringPooling="true"
 				MinimalRebuild="false"
@@ -279,6 +279,10 @@
 		</File>
 		<File
 			RelativePath="$(OutDir)\obj\global_intermediate\sorrow_natives.h"
+			>
+		</File>
+		<File
+			RelativePath="..\..\third_party\sorrow.js\src\sorrow_pin.cpp"
 			>
 		</File>
 		<File

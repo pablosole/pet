@@ -10,7 +10,7 @@ namespace sorrow {
 	public:
 		Bytes();
 		Bytes(size_t);
-		Bytes(size_t, uint8_t*);
+		Bytes(size_t, uint8_t*, bool _resizable=true, bool _readonly=false);
 		Bytes(Bytes *);
 		Bytes(Bytes *, size_t, size_t);
 		Bytes(Handle<Array>);
@@ -26,6 +26,8 @@ namespace sorrow {
         
         Bytes *concat(const Arguments&);
         Bytes *transcode(const char*, const char*);
+		inline bool setReadOnly(bool state) { return (readonly = state); }
+		inline bool setResizable(bool state) { return (resizable = state); }
         
         Handle<Array> toArray();
 

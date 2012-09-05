@@ -3,9 +3,6 @@
 /* Add all function definitions here */
 FUN(PIN_GetPid)
 {
-  ZoneList<Expression*>* args = expr->arguments();
-  ASSERT_EQ(0, args->length());
-
   const int argument_count = 0;
   {
 	AllowExternalCallThatCantCauseGC scope(masm_);

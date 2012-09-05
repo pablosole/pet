@@ -14,11 +14,19 @@ namespace sorrow {
         resize(l, true);
     }
     
-    Bytes::Bytes(size_t l, uint8_t *data): 
-        len(0), bytes(NULL), readonly(false), resizable(true) {
+    Bytes::Bytes(size_t l, uint8_t *data, bool _resizable, bool _readonly): 
+        len(0), bytes(NULL), readonly(_readonly), resizable(_resizable) {
             //printf("constructor: %s", (char*)data);
-            resize(l, false);
-            memcpy(this->bytes, data, l);
+
+			if (_resizable) {
+				//have our own copy of the buffer
+				resize(l, false);
+				memcpy(this->bytes, data, l);
+			} else {
+				//share an external buffer
+				this->bytes = data;
+				this->len = l;
+			}
     }
     
     Bytes::Bytes(Bytes *b): 
@@ -38,6 +46,7 @@ namespace sorrow {
     }
 
     Bytes::~Bytes() {
+		V8::AdjustAmountOfExternalAllocatedMemory(-static_cast<int32_t>(this->len));
         free(this->bytes);
     }
     
@@ -71,6 +80,7 @@ namespace sorrow {
                 memset(this->bytes + this->len, 0, nl-this->len);
             }
         }
+		V8::AdjustAmountOfExternalAllocatedMemory(nl - this->len);
         this->len = nl;
     }
     
