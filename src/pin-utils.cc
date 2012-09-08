@@ -183,12 +183,42 @@ Handle<Value> evalOnDefaultContext(PinContext *context_src, const string& source
 	return evalOnContext(context_src->GetIsolate(), context_src->GetContext(), ctxmgr->GetDefaultIsolate(), ctxmgr->GetSharedDataContext(), source);
 }
 
-static void 
-forceGarbageCollection()
+void forceGarbageCollection()
 {
     for (unsigned int i = 0; i < 4096; ++i)
     {
         if (v8::V8::IdleNotification())
             break;
     }
+}
+
+size_t convertToUint(Local<Value> value_in, TryCatch* try_catch) {
+    if (value_in->IsUint32()) {
+        return value_in->Uint32Value();
+    }
+    
+    Local<Value> number = value_in->ToNumber();
+    if (try_catch->HasCaught()) return 0;
+    
+    ASSERT_PIN(number->IsNumber(), "convertToUint");
+    Local<Int32> int32 = number->ToInt32();
+    if (try_catch->HasCaught() || int32.IsEmpty()) return 0;
+    
+    int32_t raw_value = int32->Int32Value();
+    if (try_catch->HasCaught()) return 0;
+    
+    if (raw_value < 0) {
+        ThrowException(String::New("Array length must not be negative."));
+        return 0;
+    }
+    
+    static const int kMaxLength = 0x3fffffff;
+#ifndef V8_SHARED
+    ASSERT_PIN(kMaxLength == i::ExternalArray::kMaxLength, "convertToUint 2");
+#endif  // V8_SHARED
+    if (raw_value > static_cast<int32_t>(kMaxLength)) {
+        ThrowException(
+                       String::New("Array length exceeds maximum length."));
+    }
+    return static_cast<size_t>(raw_value);
 }
