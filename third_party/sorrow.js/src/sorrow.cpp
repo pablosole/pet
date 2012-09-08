@@ -133,6 +133,7 @@ namespace sorrow {
 		
 		binarytypes = new BinaryTypes(internals);
 		iostreams = new IOStreams(internals);
+
 		Filesystem::Initialize(internals);
 		Extensions::Initialize(internals);
 		
@@ -169,7 +170,19 @@ namespace sorrow {
 		//global array methods
 		InitV8Arrays(Context::GetCurrent()->Global());
 
+		//PointerTypes global methods
+		pointertypes = new PointerTypes(Context::GetCurrent()->Global());
+
 		//sorrow methods
 		SetupInternals(argc, argv);
 	}
+
+	SorrowContext::~SorrowContext() {
+		delete iostreams;
+		delete binarytypes;
+		delete pointertypes;
+		internals.Dispose();
+		context.Dispose();
+	}
+
 } // namespace sorrow

@@ -88,12 +88,27 @@ namespace sorrow {
 	typedef void *sp_destroy();
 
 	/**
+     * sorrow_pin.cpp
+     */
+	class PointerTypes {
+	public:
+		PointerTypes(Handle<Object> target);
+		~PointerTypes();
+	private:
+		Persistent<FunctionTemplate> extptr_t;
+		Persistent<Function> extptr;
+		Persistent<FunctionTemplate> ownptr_t;
+		Persistent<Function> ownptr;
+	};
+
+	/**
      * sorrow.cpp
      */
     
 	class SorrowContext {
 	public:
 		SorrowContext(int argc, const char *argv[]);
+		~SorrowContext();
 		void FireExit();
 		void LoadMain();
 		Handle<Object> SetupInternals(int argc, const char *argv[]);
@@ -106,6 +121,7 @@ namespace sorrow {
 		Isolate *isolate;
 		IOStreams *iostreams;
 		BinaryTypes *binarytypes;
+		PointerTypes *pointertypes;
 	};
 }
 

@@ -489,6 +489,24 @@ class MacroAssembler: public Assembler {
     j(not_zero, not_smi_label, distance);
   }
 
+  //wrapped pointers support
+	void UntagExternal(Register reg) {
+		Label notsmi, end;
+
+		JumpIfNotSmi(reg, &notsmi, Label::kNear);
+		SmiUntag(reg);
+		jmp(&end);
+		bind(&notsmi);
+		mov (reg, Operand(reg, Foreign::kForeignAddressOffset - kHeapObjectTag));
+		bind(&end);
+	}
+
+	void UnwrapPointer(Register reg) {
+		//first internal field for a JSOBject
+		mov (reg, Operand(reg, JSObject::kHeaderSize - kHeapObjectTag));
+		UntagExternal(reg);
+	}
+
   void LoadInstanceDescriptors(Register map, Register descriptors);
 
   void LoadPowerOf2(XMMRegister dst, Register scratch, int power);
