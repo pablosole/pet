@@ -454,8 +454,12 @@ void ContextSwitcher::StopPreemption() {
 // thread at regular intervals.
 void ContextSwitcher::Run() {
   while (keep_going_) {
-    OS::Sleep(sleep_ms_);
-    isolate()->stack_guard()->Preempt();
+	  if (sleep_ms_ == 0) {
+		  Thread::YieldCPU();
+	  } else {
+		OS::Sleep(sleep_ms_);
+		isolate()->stack_guard()->Preempt();
+	  }
   }
 }
 
