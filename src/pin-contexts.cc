@@ -18,7 +18,6 @@ bool PinContext::CreateJSContext()
 
 		Handle<ObjectTemplate> global_templ = ObjectTemplate::New();
 		global_templ->SetInternalFieldCount(1);
-
 		context = Context::New(NULL, global_templ);
 
 		if (!context.IsEmpty()) {
@@ -75,8 +74,10 @@ void PinContext::DestroyJSContext()
 					}
 				}
 
+				delete sorrowctx;
+
+				global.Dispose();
 				context.Dispose();
-				context.Clear();
 				V8::ContextDisposedNotification();
 			}
 		}

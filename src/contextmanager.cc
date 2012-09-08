@@ -201,6 +201,7 @@ last_function_id(0)
 
 		Handle<ObjectTemplate> global_templ = ObjectTemplate::New();
 		global_templ->SetInternalFieldCount(1);
+
 		default_context = Context::New(NULL, global_templ);
 		if (default_context.IsEmpty())
 		{
@@ -248,8 +249,12 @@ ContextManager::~ContextManager()
 	PIN_DeleteThreadDataKey(per_thread_context_key);
 
 	V8::TerminateExecution();
+	delete sorrrowctx;
+	delete sorrrowctx_shareddata;
 	default_context.Dispose();
 	shareddata_context.Dispose();
+	
+	default_isolate->Dispose();
 }
 
 //this function returns a new context and adds it to the map of contexts or returns
