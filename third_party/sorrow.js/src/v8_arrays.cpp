@@ -26,37 +26,6 @@ namespace sorrow {
 		}
 		object.Dispose();
     }
-    
-    static size_t convertToUint(Local<Value> value_in, TryCatch* try_catch) {
-        if (value_in->IsUint32()) {
-            return value_in->Uint32Value();
-        }
-        
-        Local<Value> number = value_in->ToNumber();
-        if (try_catch->HasCaught()) return 0;
-        
-        ASSERT_PIN(number->IsNumber(), "convertToUint");
-        Local<Int32> int32 = number->ToInt32();
-        if (try_catch->HasCaught() || int32.IsEmpty()) return 0;
-        
-        int32_t raw_value = int32->Int32Value();
-        if (try_catch->HasCaught()) return 0;
-        
-        if (raw_value < 0) {
-            ThrowException(String::New("Array length must not be negative."));
-            return 0;
-        }
-        
-        static const int kMaxLength = 0x3fffffff;
-#ifndef V8_SHARED
-        ASSERT_PIN(kMaxLength == i::ExternalArray::kMaxLength, "convertToUint 2");
-#endif  // V8_SHARED
-        if (raw_value > static_cast<int32_t>(kMaxLength)) {
-            ThrowException(
-                           String::New("Array length exceeds maximum length."));
-        }
-        return static_cast<size_t>(raw_value);
-    }
 
 	Handle<Value> CreateExternalArrayBuffer(int32_t length, uint8_t *data) {
 	  Handle<Object> buffer = Object::New();
