@@ -149,7 +149,11 @@ void ContextManager::KillAllContexts()
 //It's mandatory to check the result of this initialization using IsValid()
 //after construction.
 ContextManager::ContextManager() :
-last_function_id(0)
+last_function_id(0),
+routine_instrumentation_enabled(0),
+trace_instrumentation_enabled(0),
+ins_instrumentation_enabled(0),
+instrumentation_flags(0)
 {
 	SetPerformanceCounter();
 
@@ -426,6 +430,32 @@ void ContextManager::InitializeSorrowContext(int argc, const char *argv[])
 		Locker locker;
 		Context::Scope context_scope(GetDefaultContext());
 		sorrrowctx = new SorrowContext(argc, argv);
+
+		HandleScope hscope;
+		Local<Value> funval = GetDefaultContext()->Global()->Get(String::New("setupEventBooleans"));
+		if (!funval->IsFunction()) {
+			DEBUG("setupEventBooleans not found");
+			KillPinTool();
+		}
+
+		Local<Function> fun = Local<Function>::Cast(funval);
+		Local<Value> argv[4];
+
+		Local<Value> args[1];
+		args[0] = Integer::NewFromUnsigned((uint32_t)&routine_instrumentation_enabled);
+		argv[0] = sorrrowctx->GetPointerTypes()->GetExternalPointerFunct()->NewInstance(1, args);
+
+		args[0] = Integer::NewFromUnsigned((uint32_t)&trace_instrumentation_enabled);
+		argv[1] = sorrrowctx->GetPointerTypes()->GetExternalPointerFunct()->NewInstance(1, args);
+
+		args[0] = Integer::NewFromUnsigned((uint32_t)&ins_instrumentation_enabled);
+		argv[2] = sorrrowctx->GetPointerTypes()->GetExternalPointerFunct()->NewInstance(1, args);
+
+		args[0] = Integer::NewFromUnsigned((uint32_t)&instrumentation_flags);
+		argv[3] = sorrrowctx->GetPointerTypes()->GetExternalPointerFunct()->NewInstance(1, args);
+
+		fun->Call(GetDefaultContext()->Global(), 4, argv);
+
 		if (argc)
 			sorrrowctx->LoadMain();
 	}

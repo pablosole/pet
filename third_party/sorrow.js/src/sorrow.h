@@ -93,6 +93,9 @@ namespace sorrow {
 	class PointerTypes {
 	public:
 		PointerTypes(Handle<Object> target);
+		inline Persistent<Function> &GetExternalPointerFunct() { return extptr; }
+		inline Persistent<Function> &GetOwnPointerFunct() { return ownptr; }
+		inline Persistent<Function> &GetOwnStringFunct() { return ownstr; }
 		~PointerTypes();
 	private:
 		Persistent<FunctionTemplate> extptr_t;
@@ -117,6 +120,7 @@ namespace sorrow {
 		void Load();
 		inline IOStreams *GetIOStreams() { return iostreams; }
 		inline BinaryTypes *GetBinaryTypes() { return binarytypes; }
+		inline PointerTypes *GetPointerTypes() { return pointertypes; }
 	private:
 		Persistent<Object> internals;
 		Persistent<Context> context;

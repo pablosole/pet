@@ -195,7 +195,8 @@ function SemaphoreClear() {
 
 function SemaphoreWait(timeout) {
   this.assert();
-  if (%_ArgumentsLength() > 0 && timeout > 0) {
+  var argc = %_ArgumentsLength();
+  if (argc > 0 && timeout > 0) {
     return %_PIN_SemaphoreTimedWait(this.external, timeout);
   } else {
     %_PIN_SemaphoreWait(this.external);
@@ -747,7 +748,163 @@ function SetupInstruction() {
 /************************************************************************/
 /* event object                                                         */
 /************************************************************************/
-var $EventTypes
+var $EventNames = new $Array("newroutine", "newtrace", "newinstruction", 
+    "startthread", "finithread", "loadimage", "unloadimage", "startapp", "finiapp", 
+    "followchild", "detach", "fetch", "memoryaddresstranslation", "contextchange",
+    "syscallenter", "syscallexit");
+var $EventList = new $Object();
+global.events = $EventList;
+
+//fast event checking for highly recurrent events (newroutine, newtrace, newinstruction)
+//$fastEvents_#_bool is actually an external pointer to a boolean on C++
+var $fastEvents_0_bool = null;
+var $fastEvents_0 = new $Array();
+var $fastEvents_1_bool = null;
+var $fastEvents_1 = new $Array();
+var $fastEvents_2_bool = null;
+var $fastEvents_2 = new $Array();
+var $eventFlags = 0;
+
+global.Event = function(name, fun) {
+    if (!IS_FUNCTION(fun)) {
+        throw "Event Callback is not a function";
+    }
+    
+    var idx = $EventNames.indexOf(name.toLowerCase());
+    if (idx == -1) {
+        throw "Event name not recognized: " + name;
+    }
+    
+    if (idx < 3)
+        this.fast = true;
+    else
+        this.fast = false;
+    
+    this.idx = idx;
+    this.name = name.toLowerCase();
+    this.type = "Event";
+    this.callback = fun;
+    this._enabled = true;
+}
+var $Event = global.Event;
+
+function EventEnabledGetter() {
+    return this._enabled;
+}
+
+function EventEnabledSetter(val) {
+    var tmp = ToBoolean(val);
+    
+    //noop
+    if (tmp == this._enabled)
+        return;
+    
+    if (this.fast) {
+        var arr;
+        var bool;
+        if (this.idx == 0) {
+            arr = $fastEvents_0;
+            bool = $fastEvents_0_bool;
+        } else if (this.idx == 1) {
+            arr = $fastEvents_1;
+            bool = $fastEvents_1_bool;
+        } else if (this.idx == 2) {
+            arr = $fastEvents_2;
+            bool = $fastEvents_2_bool;
+        }
+        
+        if (tmp == true) {
+            //push the event back into the array
+            var idx = arr.indexOf(this.callback);
+            if (idx == -1)
+                arr.push(this.callback);
+        } else {
+            //remove from the event list
+            var idx = arr.indexOf(this.callback);
+            if (idx != -1)
+                arr.splice(idx, 1);
+        }
+        if (arr.length() > 0) {
+            %_WritePointer(%_UnwrapPointer(bool), 1); 
+        } else {
+            %_WritePointer(%_UnwrapPointer(bool), 0); 
+        }
+    }
+    
+    this._enabled = tmp;
+}
+
+global.setupEventBooleans = function(b1,b2,b3,flags) {
+    $fastEvents_0_bool = b1;
+    $fastEvents_1_bool = b2;
+    $fastEvents_2_bool = b3;
+    $eventFlags = flags;
+}
+
+function EventAttach(arg0, arg1) {
+    var argc = %_ArgumentsLength();
+    var evt;
+    if (argc == 2) {
+        evt = new $Event(arg0, arg1);
+    } else {
+        evt = arg0;
+    }
+    
+    if (IS_NULL_OR_UNDEFINED($EventList[evt.name])) {
+        $EventList[evt.name] = new $Array();
+        
+        //flag the first time we use an event type
+        var cur = %_ReadPointer(%_UnwrapPointer($eventFlags));
+        cur |= 1 << evt.idx;
+        %_WritePointer(%_UnwrapPointer($eventFlags), cur);
+    }
+    
+    //event already attached
+    if ($EventList[evt.name].indexOf(evt) != -1)
+        return false;
+    
+    $EventList[evt.name].push(evt);
+    
+    //hack for fast events
+    if (evt.fast) {
+        var enabled = evt._enabled;
+        evt._enabled = false;
+        
+        //force adding the event to correspondent array
+        evt.enabled = enabled;
+    }
+    
+    return true;
+}
+
+function EventDetach(evt) {
+    var idx = $EventList[evt.name].indexOf(evt);
+    if (idx == -1)
+        return false;
+
+    $EventList[evt.name].splice(idx, 1);
+    
+    //hack for fast events
+    if (evt.fast) {
+        var enabled = evt._enabled;
+        //force removing the event from correspondent array
+        evt.enabled = false;
+        evt._enabled = enabled;
+    }
+    
+    return true;
+}
+
+function SetupEvents() {
+  %FunctionSetInstanceClassName($Event, 'Event');
+  %SetProperty($Event.prototype, "constructor", $Event, DONT_ENUM);
+  InstallFunctions($EventList, DONT_ENUM, $Array(
+    'attach', EventAttach,
+    'detach', EventDetach
+  ));
+  
+  %DefineOrRedefineAccessorProperty($Event.prototype, "enabled", EventEnabledGetter, EventEnabledSetter, DONT_DELETE);
+}
 
 function SetupPIN() {
   %CheckIsBootstrapping();
@@ -771,6 +928,8 @@ function SetupPIN() {
   SetupRoutine();
   
   SetupInstruction();
+  
+  SetupEvents();
 }
 
 SetupPIN();

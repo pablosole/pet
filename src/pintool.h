@@ -264,6 +264,13 @@ class ContextManager {
 	REGSET preserved_regs;
 
 	WINDOWS::LARGE_INTEGER performancecounter_start;
+
+	//Routine, Trace and Instruction fast boolean checks for instrumentation
+	BOOL routine_instrumentation_enabled;
+	BOOL trace_instrumentation_enabled;
+	BOOL ins_instrumentation_enabled;
+
+	uint32_t instrumentation_flags;
 };
 
 class CACHE_ALIGN AnalysisFunction {
