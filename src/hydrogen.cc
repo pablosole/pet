@@ -8601,6 +8601,18 @@ void HGraphBuilder::GenerateFastAsciiArrayJoin(CallRuntime* call) {
   return Bailout("inlined runtime function: FastAsciiArrayJoin");
 }
 
+void HGraphBuilder::GenerateJSStringFromCString(CallRuntime* call) {
+  return Bailout("inlined runtime function: JSStringFromCString");
+}
+
+void HGraphBuilder::GenerateWrapPointer(CallRuntime* call) {
+  return Bailout("inlined runtime function: WrapPointer");
+}
+
+void HGraphBuilder::GenerateUnwrapPointer(CallRuntime* call) {
+  return Bailout("inlined runtime function: UnwrapPointer");
+}
+
 #ifdef TARGET_WINDOWS
 #define FROM_HYDROGEN_CC
 #include "inlined-pin.h"

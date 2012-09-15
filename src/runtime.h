@@ -523,7 +523,10 @@ namespace internal {
   F(IsRegExpEquivalent, 2, 1)                                                \
   F(HasCachedArrayIndex, 1, 1)                                               \
   F(GetCachedArrayIndex, 1, 1)                                               \
-  F(FastAsciiArrayJoin, 2, 1)
+  F(FastAsciiArrayJoin, 2, 1)                                                \
+  F(WrapPointer, 2, 0)                                                       \
+  F(UnwrapPointer, 1, 1)                                                     \
+  F(JSStringFromCString, 1, 1)
 
 #ifdef TARGET_WINDOWS
 #define FROM_RUNTIME_H

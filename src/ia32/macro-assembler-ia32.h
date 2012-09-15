@@ -490,22 +490,69 @@ class MacroAssembler: public Assembler {
   }
 
   //wrapped pointers support
-	void UntagExternal(Register reg) {
-		Label notsmi, end;
+  void UntagExternal(Register reg) {
+	Label smi, end;
 
-		JumpIfNotSmi(reg, &notsmi, Label::kNear);
-		SmiUntag(reg);
-		jmp(&end);
-		bind(&notsmi);
-		mov (reg, Operand(reg, Foreign::kForeignAddressOffset - kHeapObjectTag));
-		bind(&end);
-	}
+	JumpIfSmi(reg, &smi, Label::kNear);
+	mov (reg, Operand(reg, Foreign::kForeignAddressOffset - kHeapObjectTag));
+	bind(&smi);
+  }
 
-	void UnwrapPointer(Register reg) {
-		//first internal field for a JSOBject
-		mov (reg, Operand(reg, JSObject::kHeaderSize - kHeapObjectTag));
-		UntagExternal(reg);
-	}
+  void UnwrapPointer(Register reg) {
+	//first internal field for a JSOBject
+	mov (reg, Operand(reg, JSObject::kHeaderSize - kHeapObjectTag));
+	UntagExternal(reg);
+  }
+
+  //this method is not complete (can't store a non-smi where it was a smi)
+  void WrapPointer(Register reg, Register val, Register scratch) {
+	Label notsmi, end;
+
+	//first internal field for a JSOBject
+	mov (scratch, Operand(reg, JSObject::kHeaderSize - kHeapObjectTag));
+
+	JumpIfNotSmi(scratch, &notsmi, Label::kNear);
+	mov (Operand(reg, JSObject::kHeaderSize - kHeapObjectTag), val);
+	jmp(&end);
+	bind(&notsmi);
+	mov (Operand(scratch, Foreign::kForeignAddressOffset - kHeapObjectTag), val);
+	bind(&end);
+  }
+
+  //create a JSString from a C++ string
+  //scratch1 == esi
+  //str == edi
+  //scratch2 == ecx
+  void AllocateStringFromCString(Register result, Register str, Register scratch1, Register scratch2, Register scratch3) {
+	Label bailout;
+	Label done;
+	Label selfcontained;
+
+	push (str);
+	mov  (str, Operand(str, 0x14));              // _MySize
+	AllocateAsciiString(result, str, scratch1, scratch2, scratch3, &bailout);
+	pop  (str);
+
+	lea  (scratch1, Operand(str, 0x4));          // _Bx._Buf
+	cmp  (Operand(str, 0x18), Immediate(0x10));  // _MyRes self allocated string buffer max size
+	Operand readself(scratch1, 0, RelocInfo::NONE);
+	cmov  (greater_equal, scratch1, readself);   // _Bx._Ptr
+
+	mov  (scratch2, Operand(str, 0x14));         // _MySize
+	lea  (str, Operand(result, SeqAsciiString::kHeaderSize - kHeapObjectTag));
+
+	//state:
+	// str -> JS allocated string buffer
+	// scratch1 -> C++ string ptr
+	// scratch2 -> size to copy
+	// result -> JS String object
+	CopyBytes(scratch1, str, scratch2, scratch3);
+	jmp  (&done);
+
+	bind (&bailout);
+	mov  (result, isolate()->factory()->undefined_value());
+	bind (&done);
+  }
 
   void LoadInstanceDescriptors(Register map, Register descriptors);
 
