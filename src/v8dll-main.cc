@@ -43,14 +43,6 @@ int main(int argc, char * argv[])
 		return -1;
 	}
 
-	const char *args[2] = { "dummy", "dummy" };
-	int argsc = 0;
-
-	if (KnobJSFile.NumberOfValues() > 0) {
-		args[1] = KnobJSFile.Value().c_str();
-		argsc = 2;
-	}
-
 	if (!WINDOWS::IsDebuggerPresent())
 		PIN_AddInternalExceptionHandler(InternalExceptionHandler, 0);
 
@@ -58,6 +50,13 @@ int main(int argc, char * argv[])
 
 	PIN_InitSymbols();
 
+	const char *args[2] = { "dummy", "dummy" };
+	int argsc = 0;
+
+	if (KnobJSFile.NumberOfValues() > 0) {
+		args[1] = KnobJSFile.Value().c_str();
+		argsc = 2;
+	}
 	ctxmgr->InitializeSorrowContext(argsc, args);
 
     // Start the program, never returns

@@ -75,6 +75,7 @@ extern ContextManager *ctxmgr;
 
 VOID AddGenericInstrumentation(VOID *);
 void KillPinTool();
+const char* ToCString(const v8::String::Utf8Value& value);
 void ReportException (TryCatch* try_catch);
 const string ReportExceptionToString(TryCatch* try_catch);
 Handle<Value> evalOnContext(Isolate *isolate_src, Handle<Context> context_src, Isolate *isolate_dst, Handle<Context> context_dst, const string& source);
