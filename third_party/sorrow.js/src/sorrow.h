@@ -99,6 +99,8 @@ namespace sorrow {
 		Persistent<Function> extptr;
 		Persistent<FunctionTemplate> ownptr_t;
 		Persistent<Function> ownptr;
+		Persistent<FunctionTemplate> ownstr_t;
+		Persistent<Function> ownstr;
 	};
 
 	/**
