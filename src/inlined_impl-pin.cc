@@ -1,5 +1,32 @@
 #define FUN(NAME) void FullCodeGenerator::Emit##NAME(CallRuntime* expr)
 
+FUN(ReadPointer)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ SmiUntag(eax);
+	Operand self(eax, 0, RelocInfo::NONE);
+	__ mov (eax, self);
+	__ SmiTag(eax);
+	context()->Plug(eax);
+}
+
+FUN(WritePointer)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 2);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ SmiUntag(eax);
+	VisitForStackValue(args->at(1));
+	__ pop(edx);
+	__ SmiUntag(edx);
+	Operand self(eax, 0, RelocInfo::NONE);
+	__ mov (self, edx);
+}
+
 FUN(UnwrapPointer)
 {
 	ZoneList<Expression*>* args = expr->arguments();
@@ -1001,24 +1028,29 @@ FUN(INS_Size)
 }
 
 //[addr, name, output]
+//XXX: seems broken on Pin 2.12, it lacks a string ptr deref
 FUN(RTN_CreateAt)
 {
 	ZoneList<Expression*>* args = expr->arguments();
 	ASSERT(args->length == 3);
 
 	VisitForAccumulatorValue(args->at(0));
-	VisitForStackValue(args->at(1));
-	VisitForStackValue(args->at(2));
 	__ SmiUntag(eax);
+
+	VisitForStackValue(args->at(1));
 	__ pop(edx);
 	__ UnwrapPointer(edx);
 
 	const int argument_count = 2;
 
 	__ PrepareCallCFunction(argument_count, ebx);
-	__ mov (Operand(esp, kPointerSize * 0), edx);
-	__ mov (Operand(esp, kPointerSize * 1), eax);
+	__ mov (Operand(esp, kPointerSize * 0), eax);
+	__ mov (Operand(esp, kPointerSize * 1), edx);
 	__ CallCFunction(ExternalReference::RTN_CreateAt_function(isolate()), argument_count);
+
+	__ pop(edx); //balance stack
+
+	VisitForStackValue(args->at(2));
 	__ pop(edx);
 	__ WrapPointer(edx, eax, ecx);
 }

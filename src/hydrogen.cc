@@ -8613,6 +8613,14 @@ void HGraphBuilder::GenerateUnwrapPointer(CallRuntime* call) {
   return Bailout("inlined runtime function: UnwrapPointer");
 }
 
+void HGraphBuilder::GenerateReadPointer(CallRuntime* call) {
+  return Bailout("inlined runtime function: ReadPointer");
+}
+
+void HGraphBuilder::GenerateWritePointer(CallRuntime* call) {
+  return Bailout("inlined runtime function: WritePointer");
+}
+
 #ifdef TARGET_WINDOWS
 #define FROM_HYDROGEN_CC
 #include "inlined-pin.h"

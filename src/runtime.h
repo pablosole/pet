@@ -526,6 +526,8 @@ namespace internal {
   F(FastAsciiArrayJoin, 2, 1)                                                \
   F(WrapPointer, 2, 0)                                                       \
   F(UnwrapPointer, 1, 1)                                                     \
+  F(WritePointer, 2, 0)                                                      \
+  F(ReadPointer, 1, 1)                                                       \
   F(JSStringFromCString, 1, 1)
 
 #ifdef TARGET_WINDOWS
