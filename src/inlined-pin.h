@@ -44,48 +44,53 @@
 	PIN_FUN(PIN_ExitProcess, 1, 0, 22, F) \
 	PIN_FUN(PIN_ExitApplication, 1, 0, 23, F) \
 	PIN_FUN(IMG_Invalid, 0, 1, 24, F) \
-	PIN_FUN(APP_ImgHead, 1, 0, 25, F) \
-	PIN_FUN(APP_ImgTail, 1, 0, 26, F) \
-	PIN_FUN(IMG_Prev, 2, 0, 27, F) \
-	PIN_FUN(IMG_Next, 2, 0, 28, F) \
+	PIN_FUN(APP_ImgHead, 0, 1, 25, F) \
+	PIN_FUN(APP_ImgTail, 0, 1, 26, F) \
+	PIN_FUN(IMG_Prev, 1, 1, 27, F) \
+	PIN_FUN(IMG_Next, 1, 1, 28, F) \
 	PIN_FUN(IMG_Name, 1, 1, 29, F) \
 	PIN_FUN(IMG_Entry, 1, 1, 30, F) \
 	PIN_FUN(IMG_LoadOffset, 1, 1, 31, F) \
-	PIN_FUN(IMG_FindByAddress, 2, 0, 32, F) \
-	PIN_FUN(IMG_FindImgById, 2, 0, 33, F) \
-	PIN_FUN(IMG_Open, 2, 0, 34, F) \
+	PIN_FUN(IMG_FindByAddress, 1, 1, 32, F) \
+	PIN_FUN(IMG_FindImgById, 1, 1, 33, F) \
+	PIN_FUN(IMG_Open, 1, 1, 34, F) \
 	PIN_FUN(IMG_Close, 1, 0, 35, F) \
-	PIN_FUN(IMG_SecHead, 2, 0, 36, F) \
-	PIN_FUN(IMG_SecTail, 2, 0, 37, F) \
+	PIN_FUN(IMG_SecHead, 1, 1, 36, F) \
+	PIN_FUN(IMG_SecTail, 1, 1, 37, F) \
 	PIN_FUN(SEC_Invalid, 0, 1, 38, F) \
-	PIN_FUN(SEC_Prev, 2, 0, 39, F) \
-	PIN_FUN(SEC_Next, 2, 0, 40, F) \
+	PIN_FUN(SEC_Prev, 1, 1, 39, F) \
+	PIN_FUN(SEC_Next, 1, 1, 40, F) \
 	PIN_FUN(SEC_Name, 1, 1, 41, F) \
 	PIN_FUN(SYM_Invalid, 0, 1, 42, F) \
-	PIN_FUN(SYM_Prev, 2, 0, 43, F) \
-	PIN_FUN(SYM_Next, 2, 0, 44, F) \
+	PIN_FUN(SYM_Prev, 1, 1, 43, F) \
+	PIN_FUN(SYM_Next, 1, 1, 44, F) \
 	PIN_FUN(SYM_Name, 1, 1, 45, F) \
-	PIN_FUN(IMG_RegsymHead, 2, 0, 46, F) \
-	PIN_FUN(SEC_RtnHead, 2, 0, 47, F) \
-	PIN_FUN(SEC_RtnTail, 2, 0, 48, F) \
+	PIN_FUN(IMG_RegsymHead, 1, 1, 46, F) \
+	PIN_FUN(SEC_RtnHead, 1, 1, 47, F) \
+	PIN_FUN(SEC_RtnTail, 1, 1, 48, F) \
 	PIN_FUN(RTN_Invalid, 0, 1, 49, F) \
-	PIN_FUN(RTN_Prev, 2, 0, 50, F) \
-	PIN_FUN(RTN_Next, 2, 0, 51, F) \
+	PIN_FUN(RTN_Prev, 1, 1, 50, F) \
+	PIN_FUN(RTN_Next, 1, 1, 51, F) \
 	PIN_FUN(RTN_Name, 1, 1, 52, F) \
-	PIN_FUN(RTN_InsHead, 2, 0, 53, F) \
-	PIN_FUN(RTN_InsHeadOnly, 2, 0, 54, F) \
-	PIN_FUN(RTN_InsTail, 2, 0, 55, F) \
+	PIN_FUN(RTN_InsHead, 1, 1, 53, F) \
+	PIN_FUN(RTN_InsHeadOnly, 1, 1, 54, F) \
+	PIN_FUN(RTN_InsTail, 1, 1, 55, F) \
 	PIN_FUN(INS_Invalid, 0, 1, 56, F) \
-	PIN_FUN(INS_Prev, 2, 0, 57, F) \
-	PIN_FUN(INS_Next, 2, 0, 58, F) \
+	PIN_FUN(INS_Prev, 1, 1, 57, F) \
+	PIN_FUN(INS_Next, 1, 1, 58, F) \
 	PIN_FUN(INS_Disassemble, 2, 0, 59, F) \
 	PIN_FUN(RTN_Open, 1, 0, 60, F) \
 	PIN_FUN(RTN_Close, 1, 0, 61, F) \
 	PIN_FUN(RTN_FindNameByAddress, 2, 0, 62, F) \
-	PIN_FUN(RTN_FindByAddress, 2, 0, 63, F) \
-	PIN_FUN(INS_Address, 1, 0, 64, F) \
-	PIN_FUN(INS_Size, 1, 0, 65, F) \
-	PIN_FUN(RTN_CreateAt, 3, 0, 66, F) \
+	PIN_FUN(RTN_FindByAddress, 1, 1, 63, F) \
+	PIN_FUN(INS_Address, 1, 1, 64, F) \
+	PIN_FUN(INS_Size, 1, 1, 65, F) \
+	PIN_FUN(RTN_CreateAt, 2, 1, 66, F) \
+	PIN_FUN(PIN_SaveContext, 2, 0, 67, F) \
+	PIN_FUN(PIN_ContextContainsState, 2, 1, 68, F) \
+	PIN_FUN(PIN_GetContextReg, 2, 1, 69, F) \
+	PIN_FUN(PIN_SetContextReg, 3, 0, 70, F) \
+	
 
 
 

@@ -11,16 +11,16 @@ function ReadStringPointer (addr) {
 global.readStringPointer = ReadStringPointer;
 
 /* ExternalPointer support functions */
-function PointerAssert() {
+function ExternalAssert() {
   if (!this.valid)
     throw "Invalid " + this.type;
 }
 
-function PointerDestroy() {
+function ExternalDestroy() {
   this.assert();
   if (IS_FUNCTION(this._destructor))
     this._destructor(this.external);
-  this.external={};
+  this.external=0;
   this.valid=false;  
 }
 
@@ -130,21 +130,16 @@ function RTN_FindNameByAddress(addr) {
 }
 
 function RTN_FindByAddress(addr) {
-    var external = new global.ExternalPointer();
-    %_RTN_FindByAddress(addr, external);
-    
     //no section info for this routine
-    return new $Routine(external, {});
+    return new $Routine(%_RTN_FindByAddress(addr), {});
 }
 
 function RTN_CreateAt(addr, name) {
     this.close();
     var tmp = new global.OwnString(name);
-    var external = new global.ExternalPointer();
-    %_RTN_CreateAt(addr, tmp, external);
     
     //no section info for this routine
-    return new $Routine(external, {});
+    return new $Routine(%_RTN_CreateAt(addr, tmp), {});
 }
 
 function SetupRoutines() {
@@ -208,8 +203,8 @@ function SetupSemaphore() {
   %FunctionSetInstanceClassName($Semaphore, 'Semaphore');
   %SetProperty($Semaphore.prototype, "constructor", $Semaphore, DONT_ENUM);
   InstallFunctions($Semaphore.prototype, DONT_ENUM, $Array(
-    "assert", PointerAssert,
-    "destroy", PointerDestroy,
+    "assert", ExternalAssert,
+    "destroy", ExternalDestroy,
     "set", SemaphoreSet,
     "isSet", SemaphoreIsSet,
     "clear", SemaphoreClear,
@@ -228,41 +223,28 @@ global.Image = function(external) {
         return new $Image(external);
     }
     
-    if (%_UnwrapPointer(external) == $ImageInvalidAddr) {
-        this.external = {};
-        this.valid = false;
-    } else {
-        this.external = external;
-        this.valid = true;
-    }
-  this.type = "Image";
+    this.external = external;
+    this.valid = external != $ImageInvalidAddr;
+    this.type = "Image";
 }
 var $Image = global.Image;
 
 function APP_ImgHead() {
-    var external = new global.ExternalPointer();
-    %_APP_ImgHead(external);
-    return new $Image(external);
+    return new $Image(%_APP_ImgHead());
 }
 
 function APP_ImgTail() {
-    var external = new global.ExternalPointer();
-    %_APP_ImgTail(external);
-    return new $Image(external);
+    return new $Image(%_APP_ImgTail());
 }
 
 function IMG_Next() {
     this.assert();
-    var external = new global.ExternalPointer();
-    %_IMG_Next(this.external, external);
-    return new $Image(external);
+    return new $Image(%_IMG_Next(this.external));
 }
 
 function IMG_Prev() {
     this.assert();
-    var external = new global.ExternalPointer();
-    %_IMG_Prev(this.external, external);
-    return new $Image(external);
+    return new $Image(%_IMG_Prev(this.external));
 }
 
 function IMG_Name() {
@@ -282,23 +264,17 @@ function IMG_LoadOffset() {
 
 function IMG_SecHead(external) {
     this.assert();
-    var sec = new global.ExternalPointer();
-    %_IMG_SecHead(this.external, sec);
-    return new $Section(sec, this);
+    return new $Section(%_IMG_SecHead(this.external), this);
 }
 
 function IMG_SecTail() {
     this.assert();
-    var sec = new global.ExternalPointer();
-    %_IMG_SecTail(this.external, sec);
-    return new $Section(sec, this);
+    return new $Section(%_IMG_SecTail(this.external), this);
 }
 
 function IMG_RegsymHead(external) {
     this.assert();
-    var sym = new global.ExternalPointer();
-    %_IMG_RegsymHead(this.external, sym);
-    return new $Symbol(sym, this);
+    return new $Symbol(%_IMG_RegsymHead(this.external), this);
 }
 
 function IMG_Close() {
@@ -312,10 +288,8 @@ function IMG_Open(name) {
         throw "It can be only one statically opened image";
     
     $image_opened = true;
-    var external = new global.ExternalPointer();
     var jsname = new global.OwnString(name);
-    %_IMG_Open(jsname, external);
-    var img = new $Image(external);
+    var img = new $Image(%_IMG_Open(jsname));
     if (!img.valid)
         $image_opened = false;
     else
@@ -342,15 +316,11 @@ function ImageListConstructor() {
 }
 
 function IMG_FindByAddress(addr) {
-    var external = new global.ExternalPointer();
-    %_IMG_FindByAddress(addr, external);
-    return new $Image(external);
+    return new $Image(%_IMG_FindByAddress(addr));
 }
 
 function IMG_FindImgById(imgid) {
-    var external = new global.ExternalPointer();
-    %_IMG_FindImgById(imgid, external);
-    return new $Image(external);
+    return new $Image(%_IMG_FindImgById(imgid));
 }
 
 function SetupImage() {
@@ -359,8 +329,8 @@ function SetupImage() {
   %FunctionSetInstanceClassName($Image, 'Image');
   %SetProperty($Image.prototype, "constructor", $Image, DONT_ENUM);
   InstallFunctions($Image.prototype, DONT_ENUM, $Array(
-    "assert", PointerAssert,
-    "destroy", PointerDestroy
+    "assert", ExternalAssert,
+    "destroy", ExternalDestroy
   ));
   
   InstallROAccessors($Image.prototype, $Array(
@@ -399,30 +369,21 @@ global.Section = function (external, image) {
         return new $Section(external, image);
     }
     
-    if (%_UnwrapPointer(external) == $SectionInvalidAddr) {
-        this.external = {};
-        this.valid = false;
-    } else {
-        this.external = external;
-        this.valid = true;
-    }
-  this.type = "Section";
-  this.image = image;
+    this.external = external;
+    this.valid = external != $SectionInvalidAddr;
+    this.type = "Section";
+    this.image = image;
 }
 var $Section = global.Section;
 
 function SEC_Next() {
     this.assert();
-    var external = new global.ExternalPointer();
-    %_SEC_Next(this.external, external);
-    return new $Section(external, this.image);
+    return new $Section(%_SEC_Next(this.external), this.image);
 }
 
 function SEC_Prev() {
     this.assert();
-    var external = new global.ExternalPointer();
-    %_SEC_Prev(this.external, external);
-    return new $Section(external, this.image);
+    return new $Section(%_SEC_Prev(this.external), this.image);
 }
 
 function SEC_Name() {
@@ -432,24 +393,20 @@ function SEC_Name() {
 
 function SEC_RtnHead(external) {
     this.assert();
-    var rtn = new global.ExternalPointer();
-    %_SEC_RtnHead(this.external, rtn);
-    return new $Routine(rtn, this);
+    return new $Routine(%_SEC_RtnHead(this.external), this);
 }
 
 function SEC_RtnTail() {
     this.assert();
-    var rtn = new global.ExternalPointer();
-    %_SEC_RtnTail(this.external, rtn);
-    return new $Routine(rtn, this);
+    return new $Routine(%_SEC_RtnTail(this.external), this);
 }
 
 function SetupSection() {
   %FunctionSetInstanceClassName($Section, 'Section');
   %SetProperty($Section.prototype, "constructor", $Section, DONT_ENUM);
   InstallFunctions($Section.prototype, DONT_ENUM, $Array(
-    "assert", PointerAssert,
-    "destroy", PointerDestroy
+    "assert", ExternalAssert,
+    "destroy", ExternalDestroy
   ));
   
   InstallROAccessors($Section.prototype, $Array(
@@ -484,30 +441,21 @@ global.Symbol = function(external, image) {
         return new $Symbol(external, image);
     }
     
-    if (%_UnwrapPointer(external) == $SymbolInvalidAddr) {
-        this.external = {};
-        this.valid = false;
-    } else {
-        this.external = external;
-        this.valid = true;
-    }
-  this.type = "Symbol";
-  this.image = image;
+    this.external = external;
+    this.valid = external != $SymbolInvalidAddr;
+    this.type = "Symbol";
+    this.image = image;
 }
 var $Symbol = global.Symbol;
 
 function SYM_Next() {
     this.assert();
-    var external = new global.ExternalPointer();
-    %_SYM_Next(this.external, external);
-    return new $Symbol(external, this.image);
+    return new $Symbol(%_SYM_Next(this.external), this.image);
 }
 
 function SYM_Prev() {
     this.assert();
-    var external = new global.ExternalPointer();
-    %_SYM_Prev(this.external, external);
-    return new $Symbol(external, this.image);
+    return new $Symbol(%_SYM_Prev(this.external), this.image);
 }
 
 function SYM_Name() {
@@ -519,8 +467,8 @@ function SetupSymbol() {
   %FunctionSetInstanceClassName($Symbol, 'Symbol');
   %SetProperty($Symbol.prototype, "constructor", $Symbol, DONT_ENUM);
   InstallFunctions($Symbol.prototype, DONT_ENUM, $Array(
-    "assert", PointerAssert,
-    "destroy", PointerDestroy
+    "assert", ExternalAssert,
+    "destroy", ExternalDestroy
   ));
   
   InstallROAccessors($Symbol.prototype, $Array(
@@ -552,14 +500,8 @@ global.Routine = function(external, sec) {
         return new $Routine(external, sec);
     }
     
-    if (%_UnwrapPointer(external) == $RoutineInvalidAddr) {
-        this.external = {};
-        this.valid = false;
-    } else {
-        this.external = external;
-        this.valid = true;
-    }
-    
+    this.external = external;
+    this.valid = external != $RoutineInvalidAddr;
     this.type = "Routine";
     this.section = sec;
 }
@@ -578,7 +520,7 @@ function RTN_Open() {
     
     if (!IS_NULL($routine_opened)) {
         //trying to open the same routine, maybe through a diff JS Object
-        if (%_UnwrapPointer(this.external) == %_UnwrapPointer($routine_opened))
+        if (this.external == $routine_opened)
             return;
 
         RTN_Close();
@@ -590,21 +532,17 @@ function RTN_Open() {
 
 function RTN_IsOpen() {
     this.assert();
-    return (!IS_NULL($routine_opened) && %_UnwrapPointer(this.external) == %_UnwrapPointer($routine_opened));
+    return (!IS_NULL($routine_opened) && this.external == $routine_opened);
 }
 
 function RTN_Next() {
     this.assert();
-    var external = new global.ExternalPointer();
-    %_RTN_Next(this.external, external);
-    return new $Routine(external, this.section);
+    return new $Routine(%_RTN_Next(this.external), this.section);
 }
 
 function RTN_Prev() {
     this.assert();
-    var external = new global.ExternalPointer();
-    %_RTN_Prev(this.external, external);
-    return new $Routine(external, this.section);
+    return new $Routine(%_RTN_Prev(this.external), this.section);
 }
 
 function RTN_Name() {
@@ -615,24 +553,19 @@ function RTN_Name() {
 function RTN_InsHead(external) {
     this.assert();
     this.open();
-    var ins = new global.ExternalPointer();
-    %_RTN_InsHead(this.external, ins);
-    return new $Instruction(ins);
+    return new $Instruction(%_RTN_InsHead(this.external));
 }
 
 function RTN_InsHeadOnly(external) {
     this.assert();
     this.open();
-    var ins = new global.ExternalPointer();
-    %_RTN_InsHeadOnly(this.external, ins);
-    return new $Instruction(ins);
+    return new $Instruction(%_RTN_InsHeadOnly(this.external));
 }
 
 function RTN_InsTail(external) {
     this.assert();
-    var ins = new global.ExternalPointer();
-    %_RTN_InsTail(this.external, ins);
-    return new $Instruction(ins);
+    this.open();
+    return new $Instruction(%_RTN_InsTail(this.external));
 }
 
 function SetupRoutine() {
@@ -643,8 +576,8 @@ function SetupRoutine() {
     "isOpen", RTN_IsOpen,  
     "close", RTN_Close, 
     "forEachInstruction", RoutineForEachInstruction,
-    "assert", PointerAssert,
-    "destroy", PointerDestroy
+    "assert", ExternalAssert,
+    "destroy", ExternalDestroy
   ));
   
   InstallROAccessors($Routine.prototype, $Array(
@@ -681,30 +614,20 @@ global.Instruction = function(external) {
         return new $Instruction(external);
     }
     
-    if (%_UnwrapPointer(external) == $InstructionInvalidAddr) {
-        this.external = {};
-        this.valid = false;
-    } else {
-        this.external = external;
-        this.valid = true;
-    }
-  this.type = "Instruction";
-  this._disassemble = null;
+    this.external = external;
+    this.valid = external != $InstructionInvalidAddr;
+    this.type = "Instruction";
 }
 var $Instruction = global.Instruction;
 
 function INS_Next() {
     this.assert();
-    var external = new global.ExternalPointer();
-    %_INS_Next(this.external, external);
-    return new $Instruction(external);
+    return new $Instruction(%_INS_Next(this.external));
 }
 
 function INS_Prev() {
     this.assert();
-    var external = new global.ExternalPointer();
-    %_INS_Prev(this.external, external);
-    return new $Instruction(external);
+    return new $Instruction(%_INS_Prev(this.external));
 }
 
 function INS_Address() {
@@ -719,20 +642,17 @@ function INS_Size() {
 
 function INS_Disassemble() {
     this.assert();
-    if (IS_NULL(this._disassemble)) {
-        var tmp = new global.OwnString("");  //send an empty string to have an actual allocated string object
-        %_INS_Disassemble(this.external, tmp);
-        this._disassemble = %_JSStringFromCString(%_UnwrapPointer(tmp));
-    }
-    return this._disassemble;
+    var tmp = new global.OwnString("");  //send an empty string to have an actual allocated string object
+    %_INS_Disassemble(this.external, tmp);
+    return %_JSStringFromCString(%_UnwrapPointer(tmp));
 }
 
 function SetupInstruction() {
   %FunctionSetInstanceClassName($Instruction, 'Instruction');
   %SetProperty($Instruction.prototype, "constructor", $Instruction, DONT_ENUM);
   InstallFunctions($Instruction.prototype, DONT_ENUM, $Array(
-    "assert", PointerAssert,
-    "destroy", PointerDestroy,
+    "assert", ExternalAssert,
+    "destroy", ExternalDestroy,
     'toString', INS_Disassemble
   ));
   
@@ -763,7 +683,6 @@ var $fastEvents_1_bool = null;
 var $fastEvents_1 = new $Array();
 var $fastEvents_2_bool = null;
 var $fastEvents_2 = new $Array();
-var $eventFlags = 0;
 
 global.Event = function(name, fun) {
     if (!IS_FUNCTION(fun)) {
@@ -834,11 +753,10 @@ function EventEnabledSetter(val) {
     this._enabled = tmp;
 }
 
-global.setupEventBooleans = function(b1,b2,b3,flags) {
+global.setupEventBooleans = function(b1,b2,b3) {
     $fastEvents_0_bool = b1;
     $fastEvents_1_bool = b2;
     $fastEvents_2_bool = b3;
-    $eventFlags = flags;
 }
 
 function EventAttach(arg0, arg1) {
@@ -853,10 +771,8 @@ function EventAttach(arg0, arg1) {
     if (IS_NULL_OR_UNDEFINED($EventList[evt.name])) {
         $EventList[evt.name] = new $Array();
         
-        //flag the first time we use an event type
-        var cur = %_ReadPointer(%_UnwrapPointer($eventFlags));
-        cur |= 1 << evt.idx;
-        %_WritePointer(%_UnwrapPointer($eventFlags), cur);
+        //announce the first time we use an event type
+        global.addEventProxy(evt.idx);
     }
     
     //event already attached
@@ -895,6 +811,88 @@ function EventDetach(evt) {
     return true;
 }
 
+global.startAppDispatcher = function() {
+    var name = "startapp";
+    if (!IS_NULL_OR_UNDEFINED($EventList[name])) {
+        for (var idx in $EventList[name]) {
+            var evt = $EventList[name][idx];
+            if (evt._enabled)
+                evt.callback();
+        }
+    }
+}
+
+global.finiAppDispatcher = function() {
+    var name = "finiapp";
+    if (!IS_NULL_OR_UNDEFINED($EventList[name])) {
+        for (var idx in $EventList[name]) {
+            var evt = $EventList[name][idx];
+            if (evt._enabled)
+                evt.callback();
+        }
+    }
+}
+
+global.detachDispatcher = function() {
+    var name = "detach";
+    if (!IS_NULL_OR_UNDEFINED($EventList[name])) {
+        for (var idx in $EventList[name]) {
+            var evt = $EventList[name][idx];
+            if (evt._enabled)
+                evt.callback();
+        }
+    }
+}
+
+global.startThreadDispatcher = function(tid, external, flags) {
+    var name = "startthread";
+    var ctx = new $Context(external);
+    if (!IS_NULL_OR_UNDEFINED($EventList[name])) {
+        for (var idx in $EventList[name]) {
+            var evt = $EventList[name][idx];
+            if (evt._enabled)
+                evt.callback(tid, ctx, flags);
+        }
+    }
+}
+
+global.finiThreadDispatcher = function(tid, external, code) {
+    var name = "finithread";
+    var ctx = new $Context(external);
+    ctx.fixed = true;
+    if (!IS_NULL_OR_UNDEFINED($EventList[name])) {
+        for (var idx in $EventList[name]) {
+            var evt = $EventList[name][idx];
+            if (evt._enabled)
+                evt.callback(tid, ctx, code);
+        }
+    }
+}
+
+global.loadImageDispatcher = function(external) {
+    var name = "loadimage";
+    var img = new $Image(external);
+    if (!IS_NULL_OR_UNDEFINED($EventList[name])) {
+        for (var idx in $EventList[name]) {
+            var evt = $EventList[name][idx];
+            if (evt._enabled)
+                evt.callback(img);
+        }
+    }
+}
+
+global.unloadImageDispatcher = function(external) {
+    var name = "unloadimage";
+    var img = new $Image(external);
+    if (!IS_NULL_OR_UNDEFINED($EventList[name])) {
+        for (var idx in $EventList[name]) {
+            var evt = $EventList[name][idx];
+            if (evt._enabled)
+                evt.callback(img);
+        }
+    }
+}
+
 function SetupEvents() {
   %FunctionSetInstanceClassName($Event, 'Event');
   %SetProperty($Event.prototype, "constructor", $Event, DONT_ENUM);
@@ -904,6 +902,90 @@ function SetupEvents() {
   ));
   
   %DefineOrRedefineAccessorProperty($Event.prototype, "enabled", EventEnabledGetter, EventEnabledSetter, DONT_DELETE);
+}
+
+
+/************************************************************************/
+/* context object                                                       */
+/************************************************************************/
+global.Context = function(external) {
+    if (!%_IsConstructCall()) {
+        return new $Context(external);
+    }
+    
+    if (IS_UNDEFINED(external)) {
+        this.external = {};
+        this.valid = false;
+        this.fixed = true;
+    } else {
+        if (!IS_UNDEFINED(external.type) && external.type == "Context") {
+            //We're constructing a Context from another context, use PIN_SaveContext.
+            var tmp = new global.OwnPointer(0x500);
+            %_PIN_SaveContext(external.external, tmp);
+            external = tmp;
+        }
+        this.external = external;
+        this.valid = true;
+        this.fixed = false;
+    }
+    this.type = "Context";
+}
+var $Context = global.Context;
+
+function PIN_GetContextReg(reg) {
+    this.assert();
+    return %_PIN_GetContextReg(this.external, reg.external);
+}
+
+function PIN_SetContextReg(reg, val) {
+    this.assert();
+    if (this.fixed)
+        throw "Cannot set a register on a read-only Context";
+    
+    %_PIN_SetContextReg(this.external, reg.external, val);
+}
+
+function PIN_ContextContainsState(state) {
+    this.assert();
+    var tmp;
+    switch (state.toLowerCase()) {
+        case "x87":
+            tmp = 0;
+            break;
+        case "xmm":
+            tmp = 1;
+            break;
+        case "ymm":
+            tmp = 2;
+            break;
+        default:
+            throw "Invalid context state type";
+    }
+    
+    return %_PIN_ContextContainsState(this.external, tmp);
+}
+
+//XXX: TODO
+// solve ambiguity on PIN_GetContextFPState and PIN_SetContextFPState
+
+function PIN_ExecuteAt() {
+    this.assert();
+    //XXX: TODO
+    //synchronize with proxy functions, it should switch after getting out of the Locker
+    //only valid on AF and replacements.
+}
+
+function SetupContext() {
+  %FunctionSetInstanceClassName($Context, 'Context');
+  %SetProperty($Context.prototype, "constructor", $Context, DONT_ENUM);
+  InstallFunctions($Context.prototype, DONT_ENUM, $Array(
+    "assert", ExternalAssert,
+    "destroy", ExternalDestroy,
+    "execute", PIN_ExecuteAt,
+    "get", PIN_GetContextReg,
+    "set", PIN_SetContextReg,
+    "hasState", PIN_ContextContainsState
+  ));
 }
 
 function SetupPIN() {
@@ -930,6 +1012,8 @@ function SetupPIN() {
   SetupInstruction();
   
   SetupEvents();
+  
+  SetupContext();
 }
 
 SetupPIN();

@@ -4,7 +4,7 @@ Persistent<Function> AnalysisFunctionFastCache[kFastCacheSize];
 
 bool PinContext::CreateJSContext()
 {
-	DEBUG("create new context for tid:" << tid);
+	DEBUG("Create JS Context for " << tid);
 
 	Lock();
 

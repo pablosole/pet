@@ -268,8 +268,177 @@ RWMutex
 */
 
 
+VOID ApplicationStartProxy(VOID *) {
+	Locker locker;
+	Context::Scope context_scope(ctxmgr->GetDefaultContext());
+	HandleScope hscope;
+	Local<Object> global = ctxmgr->GetDefaultContext()->Global();
+	Local<Value> funval = global->Get(String::New("startAppDispatcher"));
+	if (!funval->IsFunction()) {
+		DEBUG("startAppDispatcher not found");
+		KillPinTool();
+	}
+
+	Local<Function> fun = Local<Function>::Cast(funval);
+	fun->Call(global, 0, NULL);
+}
+
+VOID DetachProxy(VOID *) {
+	Locker locker;
+	Context::Scope context_scope(ctxmgr->GetDefaultContext());
+	HandleScope hscope;
+	Local<Object> global = ctxmgr->GetDefaultContext()->Global();
+	Local<Value> funval = global->Get(String::New("detachDispatcher"));
+	if (!funval->IsFunction()) {
+		DEBUG("detachDispatcher not found");
+		KillPinTool();
+	}
+
+	Local<Function> fun = Local<Function>::Cast(funval);
+	fun->Call(global, 0, NULL);
+}
+
+VOID StartThreadProxy(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *v)
+{
+	if (!PIN_IsApplicationThread())
+		return;
+
+	Locker locker;
+	Context::Scope context_scope(ctxmgr->GetDefaultContext());
+	HandleScope hscope;
+	Local<Object> global = ctxmgr->GetDefaultContext()->Global();
+	Local<Value> funval = global->Get(String::New("startThreadDispatcher"));
+	if (!funval->IsFunction()) {
+		DEBUG("startThreadDispatcher not found");
+		KillPinTool();
+	}
+
+	const int argc = 3;
+	Local<Value> argv[argc];
+
+	argv[0] = Integer::NewFromUnsigned(tid);
+
+	Local<Value> args[1];
+	args[0] = Integer::NewFromUnsigned((uint32_t)ctx);
+
+	argv[1] = ctxmgr->GetSorrowContext()->GetPointerTypes()->GetExternalPointerFunct()->NewInstance(1, args);
+
+	argv[2] = Integer::New(flags);
+
+	Local<Function> fun = Local<Function>::Cast(funval);
+	fun->Call(global, argc, argv);
+}
+
+VOID FiniThreadProxy(THREADID tid, const CONTEXT *ctx, INT32 code, VOID *v)
+{
+	if (!PIN_IsApplicationThread())
+		return;
+
+	Locker locker;
+	Context::Scope context_scope(ctxmgr->GetDefaultContext());
+	HandleScope hscope;
+	Local<Object> global = ctxmgr->GetDefaultContext()->Global();
+	Local<Value> funval = global->Get(String::New("finiThreadDispatcher"));
+	if (!funval->IsFunction()) {
+		DEBUG("finiThreadDispatcher not found");
+		KillPinTool();
+	}
+
+	const int argc = 3;
+	Local<Value> argv[argc];
+
+	argv[0] = Integer::NewFromUnsigned(tid);
+
+	Local<Value> args[1];
+	args[0] = Integer::NewFromUnsigned((uint32_t)ctx);
+
+	argv[1] = ctxmgr->GetSorrowContext()->GetPointerTypes()->GetExternalPointerFunct()->NewInstance(1, args);
+
+	argv[2] = Integer::New(code);
+
+	Local<Function> fun = Local<Function>::Cast(funval);
+	fun->Call(global, argc, argv);
+}
+
+VOID ImageProxy(IMG img, VOID *v)
+{
+	if (!PIN_IsApplicationThread())
+		return;
+
+	Locker locker;
+	Context::Scope context_scope(ctxmgr->GetDefaultContext());
+	HandleScope hscope;
+	Local<Object> global = ctxmgr->GetDefaultContext()->Global();
+	Local<Value> funval;
+	if (!v) {
+		funval = global->Get(String::New("loadImageDispatcher"));
+	} else {
+		funval = global->Get(String::New("unloadImageDispatcher"));
+	}
+	if (!funval->IsFunction()) {
+		DEBUG("load|unloadImageDispatcher not found");
+		KillPinTool();
+	}
+
+	const int argc = 1;
+	Local<Value> argv[argc];
+
+	argv[0] = Integer::NewFromUnsigned((uint32_t)img.index);
+
+	Local<Function> fun = Local<Function>::Cast(funval);
+	fun->Call(global, argc, argv);
+}
+
 namespace sorrow {
 	using namespace v8;
+
+    V8_FUNCTN(AddEventProxy) {
+        HandleScope scope;
+
+		if (args.Length() < 1)
+			return ThrowException(String::New("addEventProxy needs 1 parameter"));
+
+		TryCatch try_catch;
+
+		uint32_t type = convertToUint(args[0], &try_catch);
+		if (try_catch.HasCaught()) return try_catch.Exception();
+		
+		if (ctxmgr->IsInstrumentationEnabled(type))
+			return Undefined();
+		
+		switch (type) {
+			case STARTAPP:
+				PIN_AddApplicationStartFunction(ApplicationStartProxy, 0);
+				break;
+
+			case DETACH:
+				PIN_AddDetachFunction(DetachProxy, 0);
+				break;
+
+			case STARTTHREAD:
+				PIN_AddThreadStartFunction(StartThreadProxy, 0);
+				break;
+
+			case FINITHREAD:
+				PIN_AddThreadFiniFunction(FiniThreadProxy, 0);
+				break;
+
+			case LOADIMAGE:
+				IMG_AddInstrumentFunction(ImageProxy, 0);
+				break;
+
+			case UNLOADIMAGE:
+				IMG_AddUnloadFunction(ImageProxy, (VOID *)1);
+				break;
+
+			//non-supported types
+			default:
+				return Undefined();
+		}
+
+		ctxmgr->EnableInstrumentation(type);
+		return Undefined();
+	}
 
 	Handle<Value> GetOwnString(Local<String> property,
                           const AccessorInfo &info) {
@@ -421,6 +590,8 @@ namespace sorrow {
 		ownstr = Persistent<Function>::New(ownstr_t->GetFunction());
 		ownstr_t->SetClassName(V8_STR("OwnString"));
 		target->Set(V8_STR("OwnString"), ownstr);
+
+		SET_METHOD(target, "addEventProxy", AddEventProxy);
 	}
 
 	PointerTypes::~PointerTypes() {

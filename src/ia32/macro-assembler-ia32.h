@@ -489,19 +489,62 @@ class MacroAssembler: public Assembler {
     j(not_zero, not_smi_label, distance);
   }
 
-  //wrapped pointers support
-  void UntagExternal(Register reg) {
+  //functions to pass integers
+
+  //reg cannot be eax, eax is trashed
+  void CreateInteger(Register reg, Register result, Register scratch1, Register scratch2) {
+	//if value doesn't fit in 30bits (SMI without the sign bit) allocate a HeapNumber
+	Label slow_alloc;
+	Label allocated;
+	Label fits_on_smi;
+	Label done;
+
+	test(reg, Immediate(0xc0000000));
+	j(zero, &fits_on_smi, Label::kNear);
+
+	AllocateHeapNumber(result, scratch1, scratch2, &slow_alloc);
+	jmp(&allocated);
+	bind(&slow_alloc);
+	CallRuntime(Runtime::kNumberAlloc, 0);
+	mov (result, eax);
+	bind(&allocated);
+
+	//Converts a 32bit integer to the bottom 64bit double.
+	cvtsi2sd(xmm0, Operand(reg));
+	movdbl(Operand(result, HeapNumber::kValueOffset - kHeapObjectTag), xmm0);
+	jmp(&done);
+
+	bind(&fits_on_smi);
+	mov(result, reg);
+	SmiTag(result);
+
+	bind(&done);
+  }
+
+  void ReadInteger(Register reg) {
 	Label smi, end;
+
+	JumpIfSmi(reg, &smi, Label::kNear);
+	movdbl(xmm0, Operand(reg, HeapNumber::kValueOffset - kHeapObjectTag));
+
+	//Converts a 64bit double to a 32bit integer using truncation into a GPR.
+	cvttsd2si(reg, Operand(xmm0));
+	jmp(&end);
+	bind(&smi);
+	SmiUntag(reg);
+	bind(&end);
+  }
+
+  //wrapped pointers support
+  void UnwrapPointer(Register reg) {
+	//first internal field for a JSOBject
+	mov (reg, Operand(reg, JSObject::kHeaderSize - kHeapObjectTag));
+
+	Label smi;
 
 	JumpIfSmi(reg, &smi, Label::kNear);
 	mov (reg, Operand(reg, Foreign::kForeignAddressOffset - kHeapObjectTag));
 	bind(&smi);
-  }
-
-  void UnwrapPointer(Register reg) {
-	//first internal field for a JSOBject
-	mov (reg, Operand(reg, JSObject::kHeaderSize - kHeapObjectTag));
-	UntagExternal(reg);
   }
 
   //this method is not complete (can't store a non-smi where it was a smi)

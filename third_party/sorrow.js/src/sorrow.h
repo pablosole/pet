@@ -106,6 +106,12 @@ namespace sorrow {
 		Persistent<Function> ownstr;
 	};
 
+	//keep in sync with pin.js
+	enum EventTypes { NEWROUTINE, NEWTRACE, NEWINSTRUCTION, 
+		STARTTHREAD, FINITHREAD, LOADIMAGE, UNLOADIMAGE, STARTAPP, FINIAPP, 
+		FOLLOWCHILD, DETACH, FETCH, MEMORYADDRESSTRANSLATION, CONTEXTCHANGE,
+		SYSCALLENTER, SYSCALLEXIT };
+
 	/**
      * sorrow.cpp
      */

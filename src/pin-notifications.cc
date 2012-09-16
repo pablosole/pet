@@ -2,12 +2,6 @@
 #include <stdarg.h>
 #include <malloc.h>
 
-/*
-TODO:
-call V8::AdjustAmountOfExternalAllocatedMemory to adjust when we alloc/free external mem
-*/
-
-
 UINT32 docount(PinContext *context, AnalysisFunction *af, uint32_t argc, ...)
 {
 	va_list argptr;
@@ -105,7 +99,10 @@ VOID Trace(INS ins, VOID *v)
 VOID OnThreadStart(PinContext *context, VOID *f)
 {
 	DEBUG("OnThreadStart for tid:" << context->GetTid());
-
+/*
+	if (!ctxmgr->EnsurePinContextCallback(tid, OnThreadStart, v))
+		DEBUG("Failed to create EnsurePinContext callback for tid " << tid);
+*/
 	//Add instrumentation just once
 	static bool done = false;
 	if (!done) {
@@ -123,20 +120,6 @@ VOID OnThreadStart(PinContext *context, VOID *f)
 	}
 }
 
-void ThreadStart(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *v)
-{
-	if (!PIN_IsApplicationThread())
-		return;
-
-	PinContext *pincontext = ctxmgr->CreateContext(tid, false);
-
-	//set the per-thread context class to the per-thread scratch register allocated for it.
-	PIN_SetContextReg(ctx, ctxmgr->GetPerThreadContextReg(), reinterpret_cast<ADDRINT>(pincontext));
-
-	DEBUG("ThreadStart called:" << tid);
-	if (!ctxmgr->EnsurePinContextCallback(tid, OnThreadStart, v))
-		DEBUG("Failed to create EnsurePinContext callback for tid " << tid);
-}
 
 void ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
 {
@@ -147,46 +130,6 @@ void ThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 code, VOID *v)
 	if (!PinContext::IsValid(context))
 		return;
 
-	Isolate::Scope iscope(context->GetIsolate());
-	Locker lock(context->GetIsolate());
-	HandleScope hscope;
-	Context::Scope cscope(context->GetContext());
-
-	Handle<Value> read = context->GetContext()->Global()->Get(String::New("read"));
-	String::AsciiValue read_ascii(read);
-	Handle<Value> write = context->GetContext()->Global()->Get(String::New("write"));
-	String::AsciiValue write_ascii(write);
-	Handle<Value> yahoo = context->GetContext()->Global()->Get(String::New("yahoo"));
-	String::AsciiValue yahoo_ascii(yahoo);
-
-	ofstream test;
-	stringstream filename;
-	filename << "rw_" << tid << ".txt";
-
-	test.open(filename.str().c_str());
-	test.setf(ios::showbase);
-	test << "read=" << *read_ascii << " write=" << *write_ascii << " yahoo=" << *yahoo_ascii << " for tid=" << tid << endl;
-	test.close();
-
-	DEBUG("output: " << "read=" << *read_ascii << " write=" << *write_ascii << " yahoo=" << *yahoo_ascii << " for tid=" << tid << endl);
-
 	DEBUG("ThreadFini called:" << tid);
 }
 
-void Fini(INT32 code, void *v)
-{
-	DEBUG("Fini called");
-
-	ctxmgr->Abort();
-}
-
-VOID AddGenericInstrumentation(VOID *)
-{
-	//this is executed from the app's main thread
-	//before the first ThreadStart
-	DEBUG("Main TID:" << PIN_ThreadId());
-
-	PIN_AddThreadStartFunction(ThreadStart, 0);
-	PIN_AddThreadFiniFunction(ThreadFini, 0);
-	PIN_AddFiniUnlockedFunction(Fini, 0);
-}

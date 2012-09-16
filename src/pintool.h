@@ -73,7 +73,6 @@ extern ofstream OutFile;
 extern ofstream DebugFile;
 extern ContextManager *ctxmgr;
 
-VOID AddGenericInstrumentation(VOID *);
 void KillPinTool();
 const char* ToCString(const v8::String::Utf8Value& value);
 void ReportException (TryCatch* try_catch);
@@ -218,6 +217,8 @@ class ContextManager {
 	//API
 	bool EnsurePinContextCallback(THREADID tid, ENSURE_CALLBACK_FUNC *callback, VOID *v, bool create = true);
 	PinContext *EnsurePinContext(THREADID tid, bool create = true);
+	inline uint32_t IsInstrumentationEnabled(uint32_t idx) { return (instrumentation_flags & (1 << idx)) != 0; }
+	inline void EnableInstrumentation(uint32_t idx) { instrumentation_flags |= 1 << idx; }
 
 	//for fast access, this should be equivalent to: TlsGetValue(per_thread_context)
 	inline PinContext *LoadPinContext(THREADID tid) {

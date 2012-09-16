@@ -11,7 +11,7 @@ VOID ContextManager::Run(VOID *_ctx)
 	if (!ctx || !ctx->IsValid())
 		return;
 
-	DEBUG("PinContextManager thread initiated...");
+	DEBUG("ContextManager thread initiated");
 	ctx->Ready();
 
 	while (true)
@@ -188,7 +188,10 @@ instrumentation_flags(0)
 	REGSET_Insert(preserved_regs, REG_EDI);
 	REGSET_Insert(preserved_regs, REG_EBP);
 	REGSET_Insert(preserved_regs, REG_X87);
-	REGSET_Insert(preserved_regs, REG_XMM0);
+	
+	//we use XMM0 to create heap numbers
+	//REGSET_Insert(preserved_regs, REG_XMM0);
+
 	REGSET_Insert(preserved_regs, REG_XMM1);
 	REGSET_Insert(preserved_regs, REG_XMM2);
 	REGSET_Insert(preserved_regs, REG_XMM3);
@@ -439,7 +442,7 @@ void ContextManager::InitializeSorrowContext(int argc, const char *argv[])
 		}
 
 		Local<Function> fun = Local<Function>::Cast(funval);
-		Local<Value> argv[4];
+		Local<Value> argv[3];
 
 		Local<Value> args[1];
 		args[0] = Integer::NewFromUnsigned((uint32_t)&routine_instrumentation_enabled);
@@ -450,9 +453,6 @@ void ContextManager::InitializeSorrowContext(int argc, const char *argv[])
 
 		args[0] = Integer::NewFromUnsigned((uint32_t)&ins_instrumentation_enabled);
 		argv[2] = sorrrowctx->GetPointerTypes()->GetExternalPointerFunct()->NewInstance(1, args);
-
-		args[0] = Integer::NewFromUnsigned((uint32_t)&instrumentation_flags);
-		argv[3] = sorrrowctx->GetPointerTypes()->GetExternalPointerFunct()->NewInstance(1, args);
 
 		fun->Call(GetDefaultContext()->Global(), 4, argv);
 
