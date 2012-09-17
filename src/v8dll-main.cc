@@ -29,6 +29,57 @@ VOID InitializePerThreadContexts(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *
 	DEBUG("JS Context for " << tid << " queued for initialization");
 }
 
+VOID AddThreads(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *v)
+{
+	Locker locker;
+	Context::Scope context_scope(ctxmgr->GetDefaultContext());
+	HandleScope hscope;
+	Local<Object> global = ctxmgr->GetDefaultContext()->Global();
+	Local<Value> funval = global->Get(String::New("addThread"));
+	if (!funval->IsFunction()) {
+		DEBUG("addThread not found");
+		KillPinTool();
+	}
+
+	Local<Value> args[1];
+	args[0] = Integer::NewFromUnsigned(8);
+	Local<Object> ptr = ctxmgr->GetSorrowContext()->GetPointerTypes()->GetOwnPointerFunct()->NewInstance(1, args);
+	PIN_THREAD_UID *p_uid = (PIN_THREAD_UID *)ptr->GetPointerFromInternalField(0);
+	*p_uid = PIN_ThreadUid();
+
+	const int argc = 4;
+	Local<Value> argv[argc];
+
+	argv[0] = Integer::NewFromUnsigned(PIN_GetTid());
+	argv[1] = Integer::NewFromUnsigned(tid);
+	argv[2] = ptr;
+	argv[3] = Local<Value>::New(Boolean::New(PIN_IsApplicationThread()));
+
+	Local<Function> fun = Local<Function>::Cast(funval);
+	fun->Call(global, argc, argv);
+}
+
+VOID RemoveThreads(THREADID tid, const CONTEXT *ctx, INT32 code, VOID *v)
+{
+	Locker locker;
+	Context::Scope context_scope(ctxmgr->GetDefaultContext());
+	HandleScope hscope;
+	Local<Object> global = ctxmgr->GetDefaultContext()->Global();
+	Local<Value> funval = global->Get(String::New("removeThread"));
+	if (!funval->IsFunction()) {
+		DEBUG("removeThread not found");
+		KillPinTool();
+	}
+
+	const int argc = 1;
+	Local<Value> argv[argc];
+
+	argv[0] = Integer::NewFromUnsigned(tid);
+
+	Local<Function> fun = Local<Function>::Cast(funval);
+	fun->Call(global, argc, argv);
+}
+
 VOID ContextFini(INT32 code, VOID *v)
 {
 	{
@@ -83,6 +134,8 @@ int main(int argc, char * argv[])
 
 	//Callbacks for per-thread context initialization and termination
 	PIN_AddThreadStartFunction(InitializePerThreadContexts, 0);
+	PIN_AddThreadStartFunction(AddThreads, 0);
+	PIN_AddThreadFiniFunction(RemoveThreads, 0);
 	PIN_AddFiniUnlockedFunction(ContextFini, 0);
 
 	const char *args[2] = { "dummy", "dummy" };

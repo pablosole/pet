@@ -28,17 +28,6 @@ VOID ContextManager::Run(VOID *_ctx)
 	}
 
 	//If we're here, it means our tool is going to die soon, kill all contexts as gracefully as possible.
-
-	//fire the "exit" event before leaving
-	{
-		ctx->GetDefaultIsolate()->Enter();
-		Locker lock(ctx->GetDefaultIsolate());
-		HandleScope hscope;
-		Context::Scope cscope(ctx->GetDefaultContext());
-
-		ctx->GetSorrowContext()->FireExit();
-	}
-
 	ctx->KillAllContexts();
 	delete ctx;
 
@@ -150,9 +139,6 @@ void ContextManager::KillAllContexts()
 //after construction.
 ContextManager::ContextManager() :
 last_function_id(0),
-routine_instrumentation_enabled(0),
-trace_instrumentation_enabled(0),
-ins_instrumentation_enabled(0),
 instrumentation_flags(0)
 {
 	SetPerformanceCounter();
@@ -225,7 +211,7 @@ instrumentation_flags(0)
 		}
 		shareddata_context->SetSecurityToken(Undefined());
 
-		Locker::StartPreemption(100);
+		Locker::StartPreemption(50);
 	}
 
 	default_isolate = Isolate::GetCurrent();
@@ -258,6 +244,11 @@ ContextManager::~ContextManager()
 	V8::TerminateExecution();
 	delete sorrrowctx;
 	delete sorrrowctx_shareddata;
+	routine_function.Dispose();
+	trace_function.Dispose();
+	ins_function.Dispose();
+	main_ctx.Dispose();
+	main_ctx_global.Dispose();
 	default_context.Dispose();
 	shareddata_context.Dispose();
 	
@@ -455,6 +446,40 @@ void ContextManager::InitializeSorrowContext(int argc, const char *argv[])
 		argv[2] = sorrrowctx->GetPointerTypes()->GetExternalPointerFunct()->NewInstance(1, args);
 
 		fun->Call(GetDefaultContext()->Global(), 4, argv);
+
+		funval = GetDefaultContext()->Global()->Get(String::New("fastDispatcher_0"));
+		if (!funval->IsFunction()) {
+			DEBUG("fastDispatcher_0 not found");
+			KillPinTool();
+		}
+		routine_function = Persistent<Function>::New(Handle<Function>::Cast(funval));
+
+		funval = GetDefaultContext()->Global()->Get(String::New("fastDispatcher_1"));
+		if (!funval->IsFunction()) {
+			DEBUG("fastDispatcher_1 not found");
+			KillPinTool();
+		}
+		trace_function = Persistent<Function>::New(Handle<Function>::Cast(funval));
+
+		funval = GetDefaultContext()->Global()->Get(String::New("fastDispatcher_2"));
+		if (!funval->IsFunction()) {
+			DEBUG("fastDispatcher_2 not found");
+			KillPinTool();
+		}
+		ins_function = Persistent<Function>::New(Handle<Function>::Cast(funval));
+
+		main_ctx = Persistent<Context>::New(GetDefaultContext());
+		main_ctx_isolate = GetDefaultIsolate();
+
+		//this is the "receiver" argument for Invoke, it's the "this" of the function called
+		//used for the "FastCall" hack
+		i::Object** ctx = reinterpret_cast<i::Object**>(*main_ctx);
+		i::Handle<i::Context> internal_context = i::Handle<i::Context>::cast(i::Handle<i::Object>(ctx));
+		i::GlobalObject *internal_global = internal_context->global();
+		i::Handle<i::JSObject> receiver(internal_global->global_receiver());
+		Local<Object> receiver_local(Utils::ToLocal(receiver));
+		main_ctx_global = Persistent<Object>::New(receiver_local);
+
 
 		if (argc)
 			sorrrowctx->LoadMain();

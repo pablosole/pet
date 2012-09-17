@@ -73,6 +73,17 @@ extern ofstream OutFile;
 extern ofstream DebugFile;
 extern ContextManager *ctxmgr;
 
+//Routine, Trace and Instruction fast boolean checks for instrumentation
+extern uint32_t routine_instrumentation_enabled;
+extern Persistent<Function> routine_function;
+extern uint32_t trace_instrumentation_enabled;
+extern Persistent<Function> trace_function;
+extern uint32_t ins_instrumentation_enabled;
+extern Persistent<Function> ins_function;
+extern Isolate *main_ctx_isolate;
+extern Persistent<Context> main_ctx;
+extern Persistent<Object> main_ctx_global;
+
 void KillPinTool();
 const char* ToCString(const v8::String::Utf8Value& value);
 void ReportException (TryCatch* try_catch);
@@ -265,11 +276,6 @@ class ContextManager {
 	REGSET preserved_regs;
 
 	WINDOWS::LARGE_INTEGER performancecounter_start;
-
-	//Routine, Trace and Instruction fast boolean checks for instrumentation
-	BOOL routine_instrumentation_enabled;
-	BOOL trace_instrumentation_enabled;
-	BOOL ins_instrumentation_enabled;
 
 	uint32_t instrumentation_flags;
 };

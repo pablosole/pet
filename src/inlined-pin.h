@@ -90,6 +90,14 @@
 	PIN_FUN(PIN_ContextContainsState, 2, 1, 68, F) \
 	PIN_FUN(PIN_GetContextReg, 2, 1, 69, F) \
 	PIN_FUN(PIN_SetContextReg, 3, 0, 70, F) \
+	PIN_FUN(PIN_ClaimToolRegister, 0, 1, 71, F) \
+	PIN_FUN(REG_FullRegName, 1, 1, 72, F) \
+	PIN_FUN(REG_StringShort, 2, 0, 73, F) \
+	PIN_FUN(TRACE_Rtn, 1, 1, 74, F) \
+	PIN_FUN(TRACE_Address, 1, 1, 75, F) \
+	PIN_FUN(TRACE_Size, 1, 1, 76, F) \
+	PIN_FUN(PIN_RemoveInstrumentation, 0, 0, 77, F) \
+	PIN_FUN(PIN_WaitForThreadTermination, 2, 1, 78, F) \
 	
 
 

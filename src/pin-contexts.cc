@@ -60,8 +60,6 @@ void PinContext::DestroyJSContext()
 
 			if (!context.IsEmpty())
 			{
-				sorrowctx->FireExit();
-
 				V8::TerminateExecution(isolate);
 
 				if (GetTid() <= kFastCacheMaxTid) {

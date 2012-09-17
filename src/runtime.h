@@ -528,6 +528,14 @@ namespace internal {
   F(UnwrapPointer, 1, 1)                                                     \
   F(WritePointer, 2, 0)                                                      \
   F(ReadPointer, 1, 1)                                                       \
+  F(WriteWord, 2, 0)                                                         \
+  F(ReadWord, 1, 1)                                                          \
+  F(WriteByte, 2, 0)                                                         \
+  F(ReadByte, 1, 1)                                                          \
+  F(WriteDouble, 2, 0)                                                       \
+  F(ReadDouble, 1, 1)                                                        \
+  F(ReadAsciiString, 2, 1)                                                   \
+  F(ReadTwoByteString, 2, 1)                                                \
   F(JSStringFromCString, 1, 1)
 
 #ifdef TARGET_WINDOWS

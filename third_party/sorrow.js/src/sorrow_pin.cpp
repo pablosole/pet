@@ -267,6 +267,64 @@ RWMutex
 	wait(timeout)
 */
 
+//Routine, Trace and Instruction fast boolean checks for instrumentation and dispatcher functions
+uint32_t routine_instrumentation_enabled = 0;
+Persistent<Function> routine_function;
+uint32_t trace_instrumentation_enabled = 0;
+Persistent<Function> trace_function;
+uint32_t ins_instrumentation_enabled = 0;
+Persistent<Function> ins_function;
+Isolate *main_ctx_isolate;
+Persistent<Context> main_ctx;
+Persistent<Object> main_ctx_global;
+
+VOID RoutineProxy(RTN rtn, VOID *v) {
+	if (!routine_instrumentation_enabled)
+		return;
+
+	Locker locker;
+	HandleScope hscope;
+	Context::Scope context_scope(main_ctx);
+
+	const int argc = 1;
+	Local<Value> argv[argc];
+
+	argv[0] = Integer::NewFromUnsigned(rtn.index);
+
+	routine_function->FastCall(main_ctx_isolate, *main_ctx, main_ctx_global, argc, argv);
+}
+
+VOID TraceProxy(TRACE trace, VOID *v) {
+	if (!trace_instrumentation_enabled)
+		return;
+
+	Locker locker;
+	HandleScope hscope;
+	Context::Scope context_scope(main_ctx);
+
+	const int argc = 1;
+	Local<Value> argv[argc];
+
+	argv[0] = Integer::NewFromUnsigned((uint32_t)trace);
+
+	trace_function->FastCall(main_ctx_isolate, *main_ctx, main_ctx_global, argc, argv);
+}
+
+VOID InstructionProxy(INS ins, VOID *v) {
+	if (!ins_instrumentation_enabled)
+		return;
+
+	Locker locker;
+	HandleScope hscope;
+	Context::Scope context_scope(main_ctx);
+
+	const int argc = 1;
+	Local<Value> argv[argc];
+
+	argv[0] = Integer::NewFromUnsigned(ins.index);
+
+	ins_function->FastCall(main_ctx_isolate, *main_ctx, main_ctx_global, argc, argv);
+}
 
 VOID ApplicationStartProxy(VOID *) {
 	Locker locker;
@@ -362,9 +420,6 @@ VOID FiniThreadProxy(THREADID tid, const CONTEXT *ctx, INT32 code, VOID *v)
 
 VOID ImageProxy(IMG img, VOID *v)
 {
-	if (!PIN_IsApplicationThread())
-		return;
-
 	Locker locker;
 	Context::Scope context_scope(ctxmgr->GetDefaultContext());
 	HandleScope hscope;
@@ -389,8 +444,62 @@ VOID ImageProxy(IMG img, VOID *v)
 	fun->Call(global, argc, argv);
 }
 
+VOID InternalThreadProxy(VOID *arg) {
+	Locker locker;
+	HandleScope hscope;
+	Context::Scope context_scope(ctxmgr->GetDefaultContext());
+	SorrowContext sorrow(0, NULL);
+
+	Local<Object> global = ctxmgr->GetDefaultContext()->Global();
+	Local<Value> funval = global->Get(String::New("spawnedThreadDispatcher"));
+	if (!funval->IsFunction()) {
+		DEBUG("spawnedThreadDispatcher not found");
+		KillPinTool();
+	}
+
+	Persistent<Value> pobj((Value *)arg);
+	const int argc = 1;
+	Local<Value> argv[argc];
+
+	argv[0] = Local<Value>::New(pobj);
+
+	Local<Function> fun = Local<Function>::Cast(funval);
+	fun->Call(global, argc, argv);
+	pobj.Dispose();
+}
+
 namespace sorrow {
 	using namespace v8;
+
+    V8_FUNCTN(SpawnThread) {
+        HandleScope scope;
+
+		if (Isolate::GetCurrent() != ctxmgr->GetDefaultIsolate()) {
+			return ThrowException(String::New("SpawnThread can only work on the default isolate"));
+		}
+
+		if (args.Length() < 1)
+			return ThrowException(String::New("SpawnThread needs 1 parameter"));
+
+		Handle<Value> obj = args[0];
+		Persistent<Value> pobj = Persistent<Value>::New(obj);
+
+		Local<Value> arg_ptr[1];
+		arg_ptr[0] = Integer::NewFromUnsigned(8);
+		Local<Object> ptr = ctxmgr->GetSorrowContext()->GetPointerTypes()->GetOwnPointerFunct()->NewInstance(1, arg_ptr);
+		PIN_THREAD_UID *p_uid = (PIN_THREAD_UID *)ptr->GetPointerFromInternalField(0);
+
+		THREADID tid = PIN_SpawnInternalThread(InternalThreadProxy, *pobj, 0, p_uid);
+
+		if (tid == INVALID_THREADID)
+			return Null();
+
+		Local<Array> arr = Array::New(2);
+		arr->Set(0, Integer::NewFromUnsigned(tid));
+		arr->Set(1, ptr);
+
+		return scope.Close(arr);
+	}
 
     V8_FUNCTN(AddEventProxy) {
         HandleScope scope;
@@ -429,6 +538,18 @@ namespace sorrow {
 
 			case UNLOADIMAGE:
 				IMG_AddUnloadFunction(ImageProxy, (VOID *)1);
+				break;
+
+			case NEWROUTINE:
+				RTN_AddInstrumentFunction(RoutineProxy, 0);
+				break;
+
+			case NEWTRACE:
+				TRACE_AddInstrumentFunction(TraceProxy, 0);
+				break;
+
+			case NEWINSTRUCTION:
+				INS_AddInstrumentFunction(InstructionProxy, 0);
 				break;
 
 			//non-supported types
@@ -560,6 +681,25 @@ namespace sorrow {
 		self->SetPointerInInternalField(0, reinterpret_cast<void *>(value->Uint32Value()));
 	}
 
+    V8_FUNCTN(PIN_Sleep_v8) {
+        HandleScope scope;
+
+		if (args.Length() != 1)
+			return ThrowException(String::New("Sleep needs 1 parameter(ms)"));
+
+		TryCatch try_catch;
+
+		uint32_t ms = convertToUint(args[0], &try_catch);
+		if (try_catch.HasCaught()) return try_catch.Exception();
+
+		{
+			Unlocker unlocker;
+			PIN_Sleep(ms);
+		}
+
+		return Undefined();
+	}
+
 	PointerTypes::PointerTypes(Handle<Object> target) {
 		HandleScope scope;
 
@@ -592,6 +732,8 @@ namespace sorrow {
 		target->Set(V8_STR("OwnString"), ownstr);
 
 		SET_METHOD(target, "addEventProxy", AddEventProxy);
+		SET_METHOD(target, "SpawnThread", SpawnThread);
+		SET_METHOD(target, "PIN_Sleep", PIN_Sleep_v8);
 	}
 
 	PointerTypes::~PointerTypes() {

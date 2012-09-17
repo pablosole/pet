@@ -1,5 +1,200 @@
 #define FUN(NAME) void FullCodeGenerator::Emit##NAME(CallRuntime* expr)
 
+//ptr, size (0 means strlen, size is in two-bytes chars)
+FUN(ReadTwoByteString)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 2);
+
+	VisitForAccumulatorValue(args->at(1));
+	__ ReadInteger(eax);
+	__ mov(ecx, eax);  //size
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax); //ptr
+	__ mov(esi, eax);
+
+	Label bailout;
+	Label done;
+	Label strlen;
+	Label with_size;
+
+	__ test(ecx,ecx);
+	__ j(not_zero, &with_size);
+	__ mov(edi,eax);
+	Operand self(edi, 0, RelocInfo::NONE);
+	__ bind(&strlen);
+	__ cmpw(self, Immediate(0));
+	__ j(zero, &with_size);
+	__ inc(ecx);
+	__ inc(edi);
+	__ inc(edi);
+	__ jmp(&strlen);
+
+	__ bind(&with_size);
+	//allocate in chars
+	__ AllocateTwoByteString(eax, ecx, ebx, edi, edx, &bailout);
+
+	__ lea(edi, Operand(eax, SeqAsciiString::kHeaderSize - kHeapObjectTag));
+	//copy in bytes
+	__ add(ecx,ecx);
+	__ CopyBytes(esi, edi, ecx, ebx);
+	__ jmp(&done);
+
+	__ bind(&bailout);
+	__ mov(eax, isolate()->factory()->undefined_value());
+
+	__ bind(&done);
+	__ mov(esi, Operand(ebp, StandardFrameConstants::kContextOffset));
+	context()->Plug(eax);
+}
+
+//ptr, size (0 means strlen)
+FUN(ReadAsciiString)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 2);
+
+	VisitForAccumulatorValue(args->at(1));
+	__ ReadInteger(eax);
+	__ mov(ecx, eax);  //size
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax); //ptr
+	__ mov(esi, eax);
+
+	Label bailout;
+	Label done;
+	Label strlen;
+	Label with_size;
+
+	__ test(ecx,ecx);
+	__ j(not_zero, &with_size);
+	__ mov(edi,eax);
+	Operand self(edi, 0, RelocInfo::NONE);
+	__ bind(&strlen);
+	__ cmpb(self, 0);
+	__ j(zero, &with_size);
+	__ inc(ecx);
+	__ inc(edi);
+	__ jmp(&strlen);
+
+	__ bind(&with_size);
+	__ AllocateAsciiString(eax, ecx, ebx, edi, edx, &bailout);
+
+	__ lea(edi, Operand(eax, SeqAsciiString::kHeaderSize - kHeapObjectTag));
+	__ CopyBytes(esi, edi, ecx, ebx);
+	__ jmp(&done);
+
+	__ bind(&bailout);
+	__ mov(eax, isolate()->factory()->undefined_value());
+
+	__ bind(&done);
+	__ mov(esi, Operand(ebp, StandardFrameConstants::kContextOffset));
+	context()->Plug(eax);
+}
+
+FUN(ReadDouble)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	Label slow_alloc;
+	Label allocated;
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+	Operand self(eax, 0, RelocInfo::NONE);
+	__ movdbl(xmm0, self);
+
+	__ AllocateHeapNumber(edi, eax, ebx, &slow_alloc);
+	__ jmp(&allocated);
+	__ bind(&slow_alloc);
+	__ CallRuntime(Runtime::kNumberAlloc, 0);
+	__ mov(edi, eax);
+	__ bind(&allocated);
+	__ movdbl(Operand(edi, HeapNumber::kValueOffset - kHeapObjectTag), xmm0);
+
+	context()->Plug(edi);
+}
+
+FUN(WriteDouble)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 2);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+	VisitForStackValue(args->at(1));
+	__ pop(edx);
+
+	Label smi, end;
+
+	__ JumpIfSmi(edx, &smi, Label::kNear);
+	__ movdbl(xmm0, Operand(edx, HeapNumber::kValueOffset - kHeapObjectTag));
+	__ jmp(&end);
+	__ bind(&smi);
+	__ SmiUntag(edx);
+	//Converts a 32bit integer to the bottom 64bit double.
+	__ cvtsi2sd(xmm0, edx);
+	__ bind(&end);
+
+	Operand self(eax, 0, RelocInfo::NONE);
+	__ movdbl (self, xmm0);
+}
+
+FUN(ReadByte)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+	Operand self(eax, 0, RelocInfo::NONE);
+	__ movzx_b (ecx, self);
+	__ CreateInteger(ecx, edi, eax, ebx);
+	context()->Plug(edi);
+}
+
+FUN(WriteByte)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 2);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+	VisitForStackValue(args->at(1));
+	__ pop(edx);
+	__ ReadInteger(edx);
+	Operand self(eax, 0, RelocInfo::NONE);
+	__ mov_b (self, edx);
+}
+
+FUN(ReadWord)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+	Operand self(eax, 0, RelocInfo::NONE);
+	__ movzx_w (ecx, self);
+	__ CreateInteger(ecx, edi, eax, ebx);
+	context()->Plug(edi);
+}
+
+FUN(WriteWord)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 2);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+	VisitForStackValue(args->at(1));
+	__ pop(edx);
+	__ ReadInteger(edx);
+	Operand self(eax, 0, RelocInfo::NONE);
+	__ mov_w (self, edx);
+}
+
 FUN(ReadPointer)
 {
 	ZoneList<Expression*>* args = expr->arguments();
@@ -63,12 +258,8 @@ FUN(JSStringFromCString)
 	__ ReadInteger(eax);
 	__ mov(edi, eax);
 
-	__ push (esi);
-	__ push (edi);
 	__ AllocateStringFromCString(eax, edi, esi, ecx, edx);
-	__ pop (edi);
-	__ pop (esi);
-
+	__ mov(esi, Operand(ebp, StandardFrameConstants::kContextOffset));
 	context()->Plug(eax);
 }
 
@@ -1136,6 +1327,145 @@ FUN(PIN_SetContextReg)
 	__ mov (Operand(esp, kPointerSize * 1), edx);
 	__ mov (Operand(esp, kPointerSize * 2), ecx);
 	__ CallCFunction(ExternalReference::PIN_SetContextReg_function(isolate()), argument_count);
+}
+
+FUN(PIN_ClaimToolRegister)
+{
+	const int argument_count = 0;
+	__ PrepareCallCFunction(argument_count, ebx);
+	__ CallCFunction(ExternalReference::PIN_ClaimToolRegister_function(isolate()), argument_count);
+	__ mov(ecx, eax);
+	__ CreateInteger(ecx, edi, eax, ebx);
+	context()->Plug(edi);
+}
+
+FUN(REG_FullRegName)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+
+	const int argument_count = 1;
+
+	__ PrepareCallCFunction(argument_count, ebx);
+	__ mov (Operand(esp, 0), eax);
+	__ CallCFunction(ExternalReference::REG_FullRegName_function(isolate()), argument_count);
+	__ mov(ecx, eax);
+	__ CreateInteger(ecx, edi, eax, ebx);
+	context()->Plug(edi);
+}
+
+FUN(REG_StringShort)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 2);
+
+	VisitForAccumulatorValue(args->at(0));
+	VisitForStackValue(args->at(1));        //wrapped empty string buffer
+	__ ReadInteger(eax);
+	__ pop(edx);
+	__ UnwrapPointer(edx);
+
+	const int argument_count = 2;
+
+	__ PrepareCallCFunction(argument_count, ebx);
+	__ mov (Operand(esp, kPointerSize * 0), edx);
+	__ mov (Operand(esp, kPointerSize * 1), eax);
+	__ CallCFunction(ExternalReference::REG_StringShort_function(isolate()), argument_count);
+}
+
+FUN(TRACE_Rtn)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+
+	const int argument_count = 1;
+
+	__ PrepareCallCFunction(argument_count, ebx);
+	__ mov (Operand(esp, 0), eax);
+	__ CallCFunction(ExternalReference::TRACE_Rtn_function(isolate()), argument_count);
+	__ mov(ecx, eax);
+	__ CreateInteger(ecx, edi, eax, ebx);
+	context()->Plug(edi);
+}
+
+FUN(TRACE_Address)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+
+	const int argument_count = 1;
+
+	__ PrepareCallCFunction(argument_count, ebx);
+	__ mov (Operand(esp, 0), eax);
+	__ CallCFunction(ExternalReference::TRACE_Address_function(isolate()), argument_count);
+	__ mov(ecx, eax);
+	__ CreateInteger(ecx, edi, eax, ebx);
+	context()->Plug(edi);
+}
+
+FUN(TRACE_Size)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+
+	const int argument_count = 1;
+
+	__ PrepareCallCFunction(argument_count, ebx);
+	__ mov (Operand(esp, 0), eax);
+	__ CallCFunction(ExternalReference::TRACE_Size_function(isolate()), argument_count);
+	__ mov(ecx, eax);
+	__ CreateInteger(ecx, edi, eax, ebx);
+	context()->Plug(edi);
+}
+
+FUN(PIN_RemoveInstrumentation)
+{
+	const int argument_count = 0;
+	__ PrepareCallCFunction(argument_count, ebx);
+	__ CallCFunction(ExternalReference::PIN_RemoveInstrumentation_function(isolate()), argument_count);
+}
+
+FUN(PIN_WaitForThreadTermination)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 2);
+
+	Label materialize_true, materialize_false;
+	Label *if_true = NULL;
+	Label *if_false = NULL;
+	Label *fall_through = NULL;
+
+	VisitForAccumulatorValue(args->at(1));
+	__ mov(edx,eax);
+	__ ReadInteger(edx);
+	VisitForAccumulatorValue(args->at(0));
+	__ UnwrapPointer(eax);
+
+	const int argument_count = 3;
+
+	__ PrepareCallCFunction(argument_count, ebx);
+	__ mov (Operand(esp, kPointerSize * 0), eax);
+	__ mov (Operand(esp, kPointerSize * 1), edx);
+	__ mov (Operand(esp, kPointerSize * 2), Immediate(0));
+	__ CallCFunction(ExternalReference::PIN_WaitForThreadTermination_function(isolate()), argument_count);
+
+	context()->PrepareTest(&materialize_true, &materialize_false, &if_true, &if_false, &fall_through);
+	PrepareForBailoutBeforeSplit(expr, true, if_true, if_false);
+	__ test(eax, eax);
+	Split(not_zero, if_true, if_false, fall_through);
+	context()->Plug(if_true, if_false);
 }
 
 #undef FUN

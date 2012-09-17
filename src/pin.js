@@ -5,10 +5,53 @@
 /************************************************************************/
 
 //return a JS String object from a c++ string pointer
-function ReadStringPointer (addr) {
+global.readCPPString = function(addr) {
     return %_JSStringFromCString(addr);
 }
-global.readStringPointer = ReadStringPointer;
+
+global.readAsciiString = function(addr, size) {
+    if (IS_NULL_OR_UNDEFINED(size))
+        size = 0;
+    return %_ReadAsciiString(addr, size);
+}
+
+global.readTwoByteString = function(addr, size) {
+    if (IS_NULL_OR_UNDEFINED(size))
+        size = 0;
+    return %_ReadTwoByteString(addr, size);
+}
+
+global.readDword = function(addr) {
+    return %_ReadPointer(addr);
+}
+
+global.readWord = function(addr) {
+    return %_ReadWord(addr);
+}
+
+global.readByte = function(addr) {
+    return %_ReadByte(addr);
+}
+
+global.readDouble = function(addr) {
+    return %_ReadDouble(addr);
+}
+
+global.writeDword = function(addr, val) {
+    return %_WritePointer(addr, val);
+}
+
+global.writeWord = function(addr, val) {
+    return %_WriteWord(addr, val);
+}
+
+global.writeByte = function(addr, val) {
+    return %_WriteByte(addr, val);
+}
+
+global.writeDouble = function(addr, val) {
+    return %_WriteDouble(addr, val);
+}
 
 /* ExternalPointer support functions */
 function ExternalAssert() {
@@ -39,6 +82,9 @@ function InstallROAccessors(object, functions) {
 /************************************************************************/
 global.current = new $Object();
 var $current = global.current;
+$current.event = {};
+$current.thread = {};
+
 function PIN_GetPid() {
     return %_PIN_GetPid();
 }
@@ -106,7 +152,7 @@ function PIN_Yield() {
 }
 
 function PIN_Sleep(t) {
-    %_PIN_Sleep(t);
+    global.PIN_Sleep(t);
 }
 
 function SetupControl() {
@@ -174,22 +220,18 @@ function PIN_SemaphoreFini(sem) {
 }
 
 function SemaphoreIsSet() {
-  this.assert();
   return %_PIN_SemaphoreIsSet(this.external);
 }
 
 function SemaphoreSet() {
-  this.assert();
   %_PIN_SemaphoreSet(this.external);
 }
 
 function SemaphoreClear() {
-  this.assert();
   %_PIN_SemaphoreClear(this.external);
 }
 
 function SemaphoreWait(timeout) {
-  this.assert();
   var argc = %_ArgumentsLength();
   if (argc > 0 && timeout > 0) {
     return %_PIN_SemaphoreTimedWait(this.external, timeout);
@@ -238,47 +280,38 @@ function APP_ImgTail() {
 }
 
 function IMG_Next() {
-    this.assert();
     return new $Image(%_IMG_Next(this.external));
 }
 
 function IMG_Prev() {
-    this.assert();
     return new $Image(%_IMG_Prev(this.external));
 }
 
 function IMG_Name() {
-    this.assert();
     return %_JSStringFromCString(%_IMG_Name(this.external));
 }
 
 function IMG_Entry() {
-    this.assert();
     return %_IMG_Entry(this.external);
 }
 
 function IMG_LoadOffset() {
-    this.assert();
     return %_IMG_LoadOffset(this.external);
 }
 
 function IMG_SecHead(external) {
-    this.assert();
     return new $Section(%_IMG_SecHead(this.external), this);
 }
 
 function IMG_SecTail() {
-    this.assert();
     return new $Section(%_IMG_SecTail(this.external), this);
 }
 
 function IMG_RegsymHead(external) {
-    this.assert();
     return new $Symbol(%_IMG_RegsymHead(this.external), this);
 }
 
 function IMG_Close() {
-    this.assert();
     %_IMG_Close(this.external);
     $image_opened = false;
 }
@@ -353,7 +386,6 @@ function SetupImage() {
 /************************************************************************/
 var $SectionInvalidAddr = %_SEC_Invalid();
 function SectionListConstructor() {
-    this.assert();
     var arr = new $Array();
     var head = this.sectionHead;
     while (head.valid) {
@@ -377,27 +409,22 @@ global.Section = function (external, image) {
 var $Section = global.Section;
 
 function SEC_Next() {
-    this.assert();
     return new $Section(%_SEC_Next(this.external), this.image);
 }
 
 function SEC_Prev() {
-    this.assert();
     return new $Section(%_SEC_Prev(this.external), this.image);
 }
 
 function SEC_Name() {
-    this.assert();
     return %_JSStringFromCString(%_SEC_Name(this.external));
 }
 
 function SEC_RtnHead(external) {
-    this.assert();
     return new $Routine(%_SEC_RtnHead(this.external), this);
 }
 
 function SEC_RtnTail() {
-    this.assert();
     return new $Routine(%_SEC_RtnTail(this.external), this);
 }
 
@@ -425,7 +452,6 @@ function SetupSection() {
 /************************************************************************/
 var $SymbolInvalidAddr = %_SYM_Invalid();
 function SymbolListConstructor() {
-    this.assert();
     var arr = new $Array();
     var head = this.symbolHead;
     while (head.valid) {
@@ -449,17 +475,14 @@ global.Symbol = function(external, image) {
 var $Symbol = global.Symbol;
 
 function SYM_Next() {
-    this.assert();
     return new $Symbol(%_SYM_Next(this.external), this.image);
 }
 
 function SYM_Prev() {
-    this.assert();
     return new $Symbol(%_SYM_Prev(this.external), this.image);
 }
 
 function SYM_Name() {
-    this.assert();
     return %_JSStringFromCString(%_SYM_Name(this.external));
 }
 
@@ -484,7 +507,6 @@ function SetupSymbol() {
 /************************************************************************/
 var $RoutineInvalidAddr = %_RTN_Invalid();
 function RoutineListConstructor() {
-    this.assert();
     var arr = new $Array();
     var head = this.routineHead;
     while (head.valid) {
@@ -516,8 +538,6 @@ function RTN_Close() {
 }
 
 function RTN_Open() {
-    this.assert();
-    
     if (!IS_NULL($routine_opened)) {
         //trying to open the same routine, maybe through a diff JS Object
         if (this.external == $routine_opened)
@@ -531,39 +551,32 @@ function RTN_Open() {
 }
 
 function RTN_IsOpen() {
-    this.assert();
     return (!IS_NULL($routine_opened) && this.external == $routine_opened);
 }
 
 function RTN_Next() {
-    this.assert();
     return new $Routine(%_RTN_Next(this.external), this.section);
 }
 
 function RTN_Prev() {
-    this.assert();
     return new $Routine(%_RTN_Prev(this.external), this.section);
 }
 
 function RTN_Name() {
-    this.assert();
     return %_JSStringFromCString(%_RTN_Name(this.external));
 }
 
 function RTN_InsHead(external) {
-    this.assert();
     this.open();
     return new $Instruction(%_RTN_InsHead(this.external));
 }
 
 function RTN_InsHeadOnly(external) {
-    this.assert();
     this.open();
     return new $Instruction(%_RTN_InsHeadOnly(this.external));
 }
 
 function RTN_InsTail(external) {
-    this.assert();
     this.open();
     return new $Instruction(%_RTN_InsTail(this.external));
 }
@@ -596,8 +609,6 @@ function SetupRoutine() {
 /************************************************************************/
 var $InstructionInvalidAddr = %_INS_Invalid();
 function RoutineForEachInstruction(fun) {
-    this.assert();
-    
     //implicitly open the routine
     var head = this.instructionHead;
     while (head.valid) {
@@ -621,27 +632,22 @@ global.Instruction = function(external) {
 var $Instruction = global.Instruction;
 
 function INS_Next() {
-    this.assert();
     return new $Instruction(%_INS_Next(this.external));
 }
 
 function INS_Prev() {
-    this.assert();
     return new $Instruction(%_INS_Prev(this.external));
 }
 
 function INS_Address() {
-    this.assert();
     return %_INS_Address(this.external);
 }
 
 function INS_Size() {
-    this.assert();
     return %_INS_Size(this.external);
 }
 
 function INS_Disassemble() {
-    this.assert();
     var tmp = new global.OwnString("");  //send an empty string to have an actual allocated string object
     %_INS_Disassemble(this.external, tmp);
     return %_JSStringFromCString(%_UnwrapPointer(tmp));
@@ -665,6 +671,49 @@ function SetupInstruction() {
   ));
 }
 
+
+/************************************************************************/
+/* trace object                                                         */
+/************************************************************************/
+global.Trace = function(external) {
+    if (!%_IsConstructCall()) {
+        return new $Trace(external);
+    }
+    
+    //this external is a class instance ptr, not a handle like INS,BBL,etc
+    this.external = external;
+    this.valid = true;
+    this.type = "Trace";
+}
+var $Trace = global.Trace;
+
+function TRACE_Rtn() {
+    return new $Routine(%_TRACE_Rtn(this.external));
+}
+
+function TRACE_Address() {
+    return %_TRACE_Address(this.external);
+}
+
+function TRACE_Size() {
+    return %_TRACE_Size(this.external);
+}
+
+function SetupTrace() {
+  %FunctionSetInstanceClassName($Trace, 'Trace');
+  %SetProperty($Trace.prototype, "constructor", $Trace, DONT_ENUM);
+  InstallFunctions($Trace.prototype, DONT_ENUM, $Array(
+    "assert", ExternalAssert,
+    "destroy", ExternalDestroy
+  ));
+  
+  InstallROAccessors($Trace.prototype, $Array(
+      'routine', TRACE_Rtn,
+      'address', TRACE_Address,
+      'size', TRACE_Size
+  ));
+}
+
 /************************************************************************/
 /* event object                                                         */
 /************************************************************************/
@@ -678,11 +727,16 @@ global.events = $EventList;
 //fast event checking for highly recurrent events (newroutine, newtrace, newinstruction)
 //$fastEvents_#_bool is actually an external pointer to a boolean on C++
 var $fastEvents_0_bool = null;
-var $fastEvents_0 = new $Array();
 var $fastEvents_1_bool = null;
-var $fastEvents_1 = new $Array();
 var $fastEvents_2_bool = null;
+var $fastEvents_0 = new $Array();
+var $fastEvents_1 = new $Array();
 var $fastEvents_2 = new $Array();
+
+//pre-initialize the fast event arguments and fill the external field on each dispatch
+var $fastEvents_0_arg = new $Routine($RoutineInvalidAddr+1);
+var $fastEvents_1_arg = new $Trace(0);
+var $fastEvents_2_arg = new $Instruction($InstructionInvalidAddr+1);
 
 global.Event = function(name, fun) {
     if (!IS_FUNCTION(fun)) {
@@ -743,7 +797,7 @@ function EventEnabledSetter(val) {
             if (idx != -1)
                 arr.splice(idx, 1);
         }
-        if (arr.length() > 0) {
+        if (arr.length > 0) {
             %_WritePointer(%_UnwrapPointer(bool), 1); 
         } else {
             %_WritePointer(%_UnwrapPointer(bool), 0); 
@@ -811,14 +865,35 @@ function EventDetach(evt) {
     return true;
 }
 
+global.fastDispatcher_0 = function(external) {
+    $fastEvents_0_arg.external = external;
+    for (var idx in $fastEvents_0)
+        $fastEvents_0[idx]($fastEvents_0_arg);
+}
+
+global.fastDispatcher_1 = function(external) {
+    $fastEvents_1_arg.external = external;
+    for (var idx in $fastEvents_1)
+        $fastEvents_1[idx]($fastEvents_1_arg);
+}
+
+global.fastDispatcher_2 = function(external) {
+    $fastEvents_2_arg.external = external;
+    for (var idx in $fastEvents_2)
+        $fastEvents_2[idx]($fastEvents_2_arg);
+}
+
 global.startAppDispatcher = function() {
     var name = "startapp";
     if (!IS_NULL_OR_UNDEFINED($EventList[name])) {
         for (var idx in $EventList[name]) {
             var evt = $EventList[name][idx];
-            if (evt._enabled)
+            if (evt._enabled) {
+                $current.event = evt;
                 evt.callback();
+            }
         }
+        $current.event = {};
     }
 }
 
@@ -827,9 +902,12 @@ global.finiAppDispatcher = function() {
     if (!IS_NULL_OR_UNDEFINED($EventList[name])) {
         for (var idx in $EventList[name]) {
             var evt = $EventList[name][idx];
-            if (evt._enabled)
+            if (evt._enabled) {
+                $current.event = evt;
                 evt.callback();
+            }
         }
+        $current.event = {};
     }
 }
 
@@ -838,9 +916,12 @@ global.detachDispatcher = function() {
     if (!IS_NULL_OR_UNDEFINED($EventList[name])) {
         for (var idx in $EventList[name]) {
             var evt = $EventList[name][idx];
-            if (evt._enabled)
+            if (evt._enabled) {
+                $current.event = evt;
                 evt.callback();
+            }
         }
+        $current.event = {};
     }
 }
 
@@ -848,11 +929,16 @@ global.startThreadDispatcher = function(tid, external, flags) {
     var name = "startthread";
     var ctx = new $Context(external);
     if (!IS_NULL_OR_UNDEFINED($EventList[name])) {
+        $current.thread = global.threads[tid];
         for (var idx in $EventList[name]) {
             var evt = $EventList[name][idx];
-            if (evt._enabled)
+            if (evt._enabled) {
                 evt.callback(tid, ctx, flags);
+                $current.event = evt;
+            }
         }
+        $current.event = {};
+        $current.thread = {};
     }
 }
 
@@ -861,11 +947,16 @@ global.finiThreadDispatcher = function(tid, external, code) {
     var ctx = new $Context(external);
     ctx.fixed = true;
     if (!IS_NULL_OR_UNDEFINED($EventList[name])) {
+        $current.thread = global.threads[tid];
         for (var idx in $EventList[name]) {
             var evt = $EventList[name][idx];
-            if (evt._enabled)
+            if (evt._enabled) {
                 evt.callback(tid, ctx, code);
+                $current.event = evt;
+            }
         }
+        $current.event = {};
+        $current.thread = {};
     }
 }
 
@@ -875,9 +966,12 @@ global.loadImageDispatcher = function(external) {
     if (!IS_NULL_OR_UNDEFINED($EventList[name])) {
         for (var idx in $EventList[name]) {
             var evt = $EventList[name][idx];
-            if (evt._enabled)
+            if (evt._enabled) {
                 evt.callback(img);
+                $current.event = evt;
+            }
         }
+        $current.event = {};
     }
 }
 
@@ -887,9 +981,12 @@ global.unloadImageDispatcher = function(external) {
     if (!IS_NULL_OR_UNDEFINED($EventList[name])) {
         for (var idx in $EventList[name]) {
             var evt = $EventList[name][idx];
-            if (evt._enabled)
+            if (evt._enabled) {
                 evt.callback(img);
+                $current.event = evt;
+            }
         }
+        $current.event = {};
     }
 }
 
@@ -933,12 +1030,10 @@ global.Context = function(external) {
 var $Context = global.Context;
 
 function PIN_GetContextReg(reg) {
-    this.assert();
     return %_PIN_GetContextReg(this.external, reg.external);
 }
 
 function PIN_SetContextReg(reg, val) {
-    this.assert();
     if (this.fixed)
         throw "Cannot set a register on a read-only Context";
     
@@ -946,7 +1041,6 @@ function PIN_SetContextReg(reg, val) {
 }
 
 function PIN_ContextContainsState(state) {
-    this.assert();
     var tmp;
     switch (state.toLowerCase()) {
         case "x87":
@@ -969,7 +1063,6 @@ function PIN_ContextContainsState(state) {
 // solve ambiguity on PIN_GetContextFPState and PIN_SetContextFPState
 
 function PIN_ExecuteAt() {
-    this.assert();
     //XXX: TODO
     //synchronize with proxy functions, it should switch after getting out of the Locker
     //only valid on AF and replacements.
@@ -988,32 +1081,556 @@ function SetupContext() {
   ));
 }
 
+
+/************************************************************************/
+/* register object                                                      */
+/************************************************************************/
+global.Register = function(external) {
+    if (!%_IsConstructCall()) {
+        return new $Register(external);
+    }
+    
+    if (IS_UNDEFINED(external)) {
+        //claim a tool register
+        external = %_PIN_ClaimToolRegister();
+    }
+    
+    this.external = external;
+    this.valid = external != 0;  //_REG_INVALID = 0
+    this.type = "Register";
+}
+var $Register = global.Register;
+global.registers = new $Object();
+var $registers = global.registers;
+
+function REG_StringShort() {
+    var tmp = new global.OwnString("");  //send an empty string to have an actual allocated string object
+    %_REG_StringShort(this.external, tmp);
+    return %_JSStringFromCString(%_UnwrapPointer(tmp));
+}
+
+function REG_FullRegName() {
+    return new $Register(%_REG_FullRegName(this.external));
+}
+
+function SetupRegister() {
+    %FunctionSetInstanceClassName($Register, 'Register');
+    %SetProperty($Register.prototype, "constructor", $Register, DONT_ENUM);
+    InstallFunctions($Register.prototype, DONT_ENUM, $Array(
+        "assert", ExternalAssert,
+        "destroy", ExternalDestroy,
+        "toString", REG_StringShort
+    ));
+
+    InstallROAccessors($Register.prototype, $Array(
+        'name', REG_StringShort,
+        'full', REG_FullRegName
+    ));
+  
+    global.REG_NONE=new $Register(1);
+    global.REG_FIRST=new $Register(2);
+    global.REG_IMM8=new $Register(2);
+    global.REG_IMM_BASE=new $Register(2);
+    global.REG_IMM=new $Register(3);
+    global.REG_IMM32=new $Register(4);
+    global.REG_IMM_LAST=new $Register(4);
+    global.REG_MEM=new $Register(5);
+    global.REG_MEM_BASE=new $Register(5);
+    global.REG_MEM_OFF8=new $Register(6);
+    global.REG_MEM_OFF32=new $Register(7);
+    global.REG_MEM_LAST=new $Register(7);
+    global.REG_OFF8=new $Register(8);
+    global.REG_OFF_BASE=new $Register(8);
+    global.REG_OFF=new $Register(9);
+    global.REG_OFF32=new $Register(10);
+    global.REG_OFF_LAST=new $Register(10);
+    global.REG_MODX=new $Register(11);
+    global.REG_RBASE=new $Register(12);
+    global.REG_MACHINE_BASE=new $Register(12);
+    global.REG_APPLICATION_BASE=new $Register(12);
+    global.REG_PHYSICAL_CONTEXT_BEGIN=new $Register(12);
+    global.REG_GR_BASE=new $Register(12);
+    global.REG_EDI=new $Register(12);
+    global.REG_GDI=new $Register(12);
+    global.REG_ESI=new $Register(13);
+    global.REG_GSI=new $Register(13);
+    global.REG_EBP=new $Register(14);
+    global.REG_GBP=new $Register(14);
+    global.REG_ESP=new $Register(15);
+    global.REG_STACK_PTR=new $Register(15);
+    global.REG_EBX=new $Register(16);
+    global.REG_GBX=new $Register(16);
+    global.REG_EDX=new $Register(17);
+    global.REG_GDX=new $Register(17);
+    global.REG_ECX=new $Register(18);
+    global.REG_GCX=new $Register(18);
+    global.REG_EAX=new $Register(19);
+    global.REG_GAX=new $Register(19);
+    global.REG_GR_LAST=new $Register(19);
+    global.REG_SEG_BASE=new $Register(20);
+    global.REG_SEG_CS=new $Register(20);
+    global.REG_SEG_SS=new $Register(21);
+    global.REG_SEG_DS=new $Register(22);
+    global.REG_SEG_ES=new $Register(23);
+    global.REG_SEG_FS=new $Register(24);
+    global.REG_SEG_GS=new $Register(25);
+    global.REG_SEG_LAST=new $Register(25);
+    global.REG_EFLAGS=new $Register(26);
+    global.REG_GFLAGS=new $Register(26);
+    global.REG_EIP=new $Register(27);
+    global.REG_INST_PTR=new $Register(27);
+    global.REG_PHYSICAL_CONTEXT_END=new $Register(27);
+    global.REG_AL=new $Register(28);
+    global.REG_AH=new $Register(29);
+    global.REG_AX=new $Register(30);
+    global.REG_CL=new $Register(31);
+    global.REG_CH=new $Register(32);
+    global.REG_CX=new $Register(33);
+    global.REG_DL=new $Register(34);
+    global.REG_DH=new $Register(35);
+    global.REG_DX=new $Register(36);
+    global.REG_BL=new $Register(37);
+    global.REG_BH=new $Register(38);
+    global.REG_BX=new $Register(39);
+    global.REG_BP=new $Register(40);
+    global.REG_SI=new $Register(41);
+    global.REG_DI=new $Register(42);
+    global.REG_SP=new $Register(43);
+    global.REG_FLAGS=new $Register(44);
+    global.REG_IP=new $Register(45);
+    global.REG_MM_BASE=new $Register(46);
+    global.REG_MM0=new $Register(46);
+    global.REG_MM1=new $Register(47);
+    global.REG_MM2=new $Register(48);
+    global.REG_MM3=new $Register(49);
+    global.REG_MM4=new $Register(50);
+    global.REG_MM5=new $Register(51);
+    global.REG_MM6=new $Register(52);
+    global.REG_MM7=new $Register(53);
+    global.REG_MM_LAST=new $Register(53);
+    global.REG_EMM_BASE=new $Register(54);
+    global.REG_EMM0=new $Register(54);
+    global.REG_EMM1=new $Register(55);
+    global.REG_EMM2=new $Register(56);
+    global.REG_EMM3=new $Register(57);
+    global.REG_EMM4=new $Register(58);
+    global.REG_EMM5=new $Register(59);
+    global.REG_EMM6=new $Register(60);
+    global.REG_EMM7=new $Register(61);
+    global.REG_EMM_LAST=new $Register(61);
+    global.REG_MXT=new $Register(62);
+    global.REG_X87=new $Register(63);
+    global.REG_XMM_BASE=new $Register(64);
+    global.REG_FIRST_FP_REG=new $Register(64);
+    global.REG_XMM0=new $Register(64);
+    global.REG_XMM1=new $Register(65);
+    global.REG_XMM2=new $Register(66);
+    global.REG_XMM3=new $Register(67);
+    global.REG_XMM4=new $Register(68);
+    global.REG_XMM5=new $Register(69);
+    global.REG_XMM6=new $Register(70);
+    global.REG_XMM7=new $Register(71);
+    global.REG_XMM_LAST=new $Register(71);
+    global.REG_YMM_BASE=new $Register(72);
+    global.REG_YMM0=new $Register(72);
+    global.REG_YMM1=new $Register(73);
+    global.REG_YMM2=new $Register(74);
+    global.REG_YMM3=new $Register(75);
+    global.REG_YMM4=new $Register(76);
+    global.REG_YMM5=new $Register(77);
+    global.REG_YMM6=new $Register(78);
+    global.REG_YMM7=new $Register(79);
+    global.REG_YMM_LAST=new $Register(79);
+    global.REG_MXCSR=new $Register(80);
+    global.REG_MXCSRMASK=new $Register(81);
+    global.REG_ORIG_EAX=new $Register(82);
+    global.REG_ORIG_GAX=new $Register(82);
+    global.REG_DR_BASE=new $Register(83);
+    global.REG_DR0=new $Register(83);
+    global.REG_DR1=new $Register(84);
+    global.REG_DR2=new $Register(85);
+    global.REG_DR3=new $Register(86);
+    global.REG_DR4=new $Register(87);
+    global.REG_DR5=new $Register(88);
+    global.REG_DR6=new $Register(89);
+    global.REG_DR7=new $Register(90);
+    global.REG_DR_LAST=new $Register(90);
+    global.REG_CR_BASE=new $Register(91);
+    global.REG_CR0=new $Register(91);
+    global.REG_CR1=new $Register(92);
+    global.REG_CR2=new $Register(93);
+    global.REG_CR3=new $Register(94);
+    global.REG_CR4=new $Register(95);
+    global.REG_CR_LAST=new $Register(95);
+    global.REG_TSSR=new $Register(96);
+    global.REG_LDTR=new $Register(97);
+    global.REG_TR_BASE=new $Register(98);
+    global.REG_TR=new $Register(98);
+    global.REG_TR3=new $Register(99);
+    global.REG_TR4=new $Register(100);
+    global.REG_TR5=new $Register(101);
+    global.REG_TR6=new $Register(102);
+    global.REG_TR7=new $Register(103);
+    global.REG_TR_LAST=new $Register(103);
+    global.REG_FPST_BASE=new $Register(104);
+    global.REG_FPSTATUS_BASE=new $Register(104);
+    global.REG_FPCW=new $Register(104);
+    global.REG_FPSW=new $Register(105);
+    global.REG_FPTAG=new $Register(106);
+    global.REG_FPIP_OFF=new $Register(107);
+    global.REG_FPIP_SEL=new $Register(108);
+    global.REG_FPOPCODE=new $Register(109);
+    global.REG_FPDP_OFF=new $Register(110);
+    global.REG_FPDP_SEL=new $Register(111);
+    global.REG_FPSTATUS_LAST=new $Register(111);
+    global.REG_FPTAG_FULL=new $Register(112);
+    global.REG_ST_BASE=new $Register(113);
+    global.REG_ST0=new $Register(113);
+    global.REG_ST1=new $Register(114);
+    global.REG_ST2=new $Register(115);
+    global.REG_ST3=new $Register(116);
+    global.REG_ST4=new $Register(117);
+    global.REG_ST5=new $Register(118);
+    global.REG_ST6=new $Register(119);
+    global.REG_ST7=new $Register(120);
+    global.REG_ST_LAST=new $Register(120);
+    global.REG_FPST_LAST=new $Register(120);
+    global.REG_MACHINE_LAST=new $Register(120);
+    global.REG_STATUS_FLAGS=new $Register(121);
+    global.REG_DF_FLAG=new $Register(122);
+    global.REG_APPLICATION_LAST=new $Register(122);
+    global.REG_PIN_BASE=new $Register(123);
+    global.REG_PIN_GR_BASE=new $Register(123);
+    global.REG_PIN_EDI=new $Register(123);
+    global.REG_PIN_GDI=new $Register(123);
+    global.REG_PIN_ESI=new $Register(124);
+    global.REG_PIN_EBP=new $Register(125);
+    global.REG_PIN_ESP=new $Register(126);
+    global.REG_PIN_STACK_PTR=new $Register(126);
+    global.REG_PIN_EBX=new $Register(127);
+    global.REG_PIN_EDX=new $Register(128);
+    global.REG_PIN_GDX=new $Register(128);
+    global.REG_PIN_ECX=new $Register(129);
+    global.REG_PIN_GCX=new $Register(129);
+    global.REG_PIN_EAX=new $Register(130);
+    global.REG_PIN_GAX=new $Register(130);
+    global.REG_PIN_AL=new $Register(131);
+    global.REG_PIN_AH=new $Register(132);
+    global.REG_PIN_AX=new $Register(133);
+    global.REG_PIN_CL=new $Register(134);
+    global.REG_PIN_CH=new $Register(135);
+    global.REG_PIN_CX=new $Register(136);
+    global.REG_PIN_DL=new $Register(137);
+    global.REG_PIN_DH=new $Register(138);
+    global.REG_PIN_DX=new $Register(139);
+    global.REG_PIN_BL=new $Register(140);
+    global.REG_PIN_BH=new $Register(141);
+    global.REG_PIN_BX=new $Register(142);
+    global.REG_PIN_BP=new $Register(143);
+    global.REG_PIN_SI=new $Register(144);
+    global.REG_PIN_DI=new $Register(145);
+    global.REG_PIN_SP=new $Register(146);
+    global.REG_PIN_X87=new $Register(147);
+    global.REG_PIN_MXCSR=new $Register(148);
+    global.REG_THREAD_ID=new $Register(149);
+    global.REG_SEG_GS_VAL=new $Register(150);
+    global.REG_SEG_FS_VAL=new $Register(151);
+    global.REG_PIN_INDIRREG=new $Register(152);
+    global.REG_PIN_IPRELADDR=new $Register(153);
+    global.REG_PIN_SYSENTER_RESUMEADDR=new $Register(154);
+    global.REG_PIN_VMENTER=new $Register(155);
+    global.REG_PIN_T_BASE=new $Register(156);
+    global.REG_PIN_T0=new $Register(156);
+    global.REG_PIN_T1=new $Register(157);
+    global.REG_PIN_T2=new $Register(158);
+    global.REG_PIN_T3=new $Register(159);
+    global.REG_PIN_T0L=new $Register(160);
+    global.REG_PIN_T1L=new $Register(161);
+    global.REG_PIN_T2L=new $Register(162);
+    global.REG_PIN_T3L=new $Register(163);
+    global.REG_PIN_T0W=new $Register(164);
+    global.REG_PIN_T1W=new $Register(165);
+    global.REG_PIN_T2W=new $Register(166);
+    global.REG_PIN_T3W=new $Register(167);
+    global.REG_PIN_T0D=new $Register(168);
+    global.REG_PIN_T1D=new $Register(169);
+    global.REG_PIN_T2D=new $Register(170);
+    global.REG_PIN_T3D=new $Register(171);
+    global.REG_PIN_T_LAST=new $Register(171);
+    global.REG_SEG_GS_BASE=new $Register(172);
+    global.REG_SEG_FS_BASE=new $Register(173);
+    global.REG_INST_BASE=new $Register(174);
+    global.REG_INST_SCRATCH_BASE=new $Register(174);
+    global.REG_INST_G0=new $Register(174);
+    global.REG_INST_TOOL_FIRST=new $Register(174);
+    global.REG_INST_G1=new $Register(175);
+    global.REG_INST_G2=new $Register(176);
+    global.REG_INST_G3=new $Register(177);
+    global.REG_INST_G4=new $Register(178);
+    global.REG_INST_G5=new $Register(179);
+    global.REG_INST_G6=new $Register(180);
+    global.REG_INST_G7=new $Register(181);
+    global.REG_INST_G8=new $Register(182);
+    global.REG_INST_G9=new $Register(183);
+    global.REG_INST_G10=new $Register(184);
+    global.REG_INST_G11=new $Register(185);
+    global.REG_INST_G12=new $Register(186);
+    global.REG_INST_G13=new $Register(187);
+    global.REG_INST_G14=new $Register(188);
+    global.REG_INST_G15=new $Register(189);
+    global.REG_INST_G16=new $Register(190);
+    global.REG_INST_G17=new $Register(191);
+    global.REG_INST_G18=new $Register(192);
+    global.REG_INST_G19=new $Register(193);
+    global.REG_INST_TOOL_LAST=new $Register(193);
+    global.REG_BUF_BASE0=new $Register(194);
+    global.REG_BUF_BASE1=new $Register(195);
+    global.REG_BUF_BASE2=new $Register(196);
+    global.REG_BUF_BASE3=new $Register(197);
+    global.REG_BUF_BASE4=new $Register(198);
+    global.REG_BUF_BASE5=new $Register(199);
+    global.REG_BUF_BASE6=new $Register(200);
+    global.REG_BUF_BASE7=new $Register(201);
+    global.REG_BUF_BASE8=new $Register(202);
+    global.REG_BUF_BASE9=new $Register(203);
+    global.REG_BUF_LAST=new $Register(203);
+    global.REG_BUF_END0=new $Register(204);
+    global.REG_BUF_END1=new $Register(205);
+    global.REG_BUF_END2=new $Register(206);
+    global.REG_BUF_END3=new $Register(207);
+    global.REG_BUF_END4=new $Register(208);
+    global.REG_BUF_END5=new $Register(209);
+    global.REG_BUF_END6=new $Register(210);
+    global.REG_BUF_END7=new $Register(211);
+    global.REG_BUF_END8=new $Register(212);
+    global.REG_BUF_END9=new $Register(213);
+    global.REG_BUF_ENDLAST=new $Register(213);
+    global.REG_INST_SCRATCH_LAST=new $Register(213);
+    global.REG_INST_COND=new $Register(214);
+    global.REG_INST_LAST=new $Register(214);
+    global.REG_INST_T0=new $Register(215);
+    global.REG_INST_T0L=new $Register(216);
+    global.REG_INST_T0W=new $Register(217);
+    global.REG_INST_T0D=new $Register(218);
+    global.REG_INST_T1=new $Register(219);
+    global.REG_INST_T1L=new $Register(220);
+    global.REG_INST_T1W=new $Register(221);
+    global.REG_INST_T1D=new $Register(222);
+    global.REG_INST_T2=new $Register(223);
+    global.REG_INST_T2L=new $Register(224);
+    global.REG_INST_T2W=new $Register(225);
+    global.REG_INST_T2D=new $Register(226);
+    global.REG_INST_T3=new $Register(227);
+    global.REG_INST_T3L=new $Register(228);
+    global.REG_INST_T3W=new $Register(229);
+    global.REG_INST_T3D=new $Register(230);
+    global.REG_INST_PRESERVED_PREDICATE=new $Register(231);
+    global.REG_FLAGS_BEFORE_AC_CLEARING=new $Register(232);
+    global.REG_PIN_BRIDGE_ORIG_SP=new $Register(233);
+    global.REG_PIN_BRIDGE_APP_IP=new $Register(234);
+    global.REG_PIN_BRIDGE_SP_BEFORE_ALIGN=new $Register(235);
+    global.REG_PIN_BRIDGE_SP_BEFORE_CALL=new $Register(236);
+    global.REG_PIN_BRIDGE_MARSHALLING_FRAME=new $Register(237);
+    global.REG_PIN_BRIDGE_ON_STACK_CONTEXT_FRAME=new $Register(238);
+    global.REG_PIN_BRIDGE_ON_STACK_CONTEXT_SP=new $Register(239);
+    global.REG_PIN_BRIDGE_MULTI_MEMORYACCESS_FRAME=new $Register(240);
+    global.REG_PIN_BRIDGE_MULTI_MEMORYACCESS_SP=new $Register(241);
+    global.REG_PIN_BRIDGE_TRANS_MEMORY_CALLBACK_FRAME=new $Register(242);
+    global.REG_PIN_BRIDGE_TRANS_MEMORY_CALLBACK_SP=new $Register(243);
+    global.REG_PIN_TRANS_MEMORY_CALLBACK_READ_ADDR=new $Register(244);
+    global.REG_PIN_TRANS_MEMORY_CALLBACK_READ2_ADDR=new $Register(245);
+    global.REG_PIN_TRANS_MEMORY_CALLBACK_WRITE_ADDR=new $Register(246);
+    global.REG_PIN_BRIDGE_SPILL_AREA_CONTEXT_FRAME=new $Register(247);
+    global.REG_PIN_BRIDGE_SPILL_AREA_CONTEXT_SP=new $Register(248);
+    global.REG_PIN_SPILLPTR=new $Register(249);
+    global.REG_PIN_GR_LAST=new $Register(249);
+    global.REG_PIN_STATUS_FLAGS=new $Register(250);
+    global.REG_PIN_DF_FLAG=new $Register(251);
+    global.REG_PIN_FLAGS=new $Register(252);
+    global.REG_PIN_XMM_BASE=new $Register(253);
+    global.REG_PIN_XMM0=new $Register(253);
+    global.REG_PIN_XMM1=new $Register(254);
+    global.REG_PIN_XMM2=new $Register(255);
+    global.REG_PIN_XMM3=new $Register(256);
+    global.REG_PIN_XMM4=new $Register(257);
+    global.REG_PIN_XMM5=new $Register(258);
+    global.REG_PIN_XMM6=new $Register(259);
+    global.REG_PIN_XMM7=new $Register(260);
+    global.REG_PIN_XMM8=new $Register(261);
+    global.REG_PIN_XMM9=new $Register(262);
+    global.REG_PIN_XMM10=new $Register(263);
+    global.REG_PIN_XMM11=new $Register(264);
+    global.REG_PIN_XMM12=new $Register(265);
+    global.REG_PIN_XMM13=new $Register(266);
+    global.REG_PIN_XMM14=new $Register(267);
+    global.REG_PIN_XMM15=new $Register(268);
+    global.REG_PIN_YMM_BASE=new $Register(269);
+    global.REG_PIN_YMM0=new $Register(269);
+    global.REG_PIN_YMM1=new $Register(270);
+    global.REG_PIN_YMM2=new $Register(271);
+    global.REG_PIN_YMM3=new $Register(272);
+    global.REG_PIN_YMM4=new $Register(273);
+    global.REG_PIN_YMM5=new $Register(274);
+    global.REG_PIN_YMM6=new $Register(275);
+    global.REG_PIN_YMM7=new $Register(276);
+    global.REG_PIN_YMM_LAST=new $Register(276);
+    global.REG_PIN_YMM8=new $Register(277);
+    global.REG_PIN_YMM9=new $Register(278);
+    global.REG_PIN_YMM10=new $Register(279);
+    global.REG_PIN_YMM11=new $Register(280);
+    global.REG_PIN_YMM12=new $Register(281);
+    global.REG_PIN_YMM13=new $Register(282);
+    global.REG_PIN_YMM14=new $Register(283);
+    global.REG_PIN_YMM15=new $Register(284);
+    global.REG_PIN_LAST=new $Register(284);
+    global.REG_LAST=new $Register(285);
+}
+
+/************************************************************************/
+/* thread object                                                        */
+/************************************************************************/
+global.Thread = function(id,tid,tuid,isapp) {
+    if (!%_IsConstructCall()) {
+        return new $Thread(id,tid,tuid,isapp);
+    }
+    
+    //we're allocating a new internal thread
+    if (IS_FUNCTION(id)) {
+        this.callback = id;
+        this.args = tid;
+        //tid is an array of arguments to pass to the function
+        var data = global.SpawnThread(this);
+        if (IS_NULL_OR_UNDEFINED(data))
+            throw "Spawn new thread failed";
+        
+        this.threadId = data[0];
+        this.threadUid = data[1];
+        this.tid = -1;
+        this.appThread = false;
+        this.spawnedThread = true;
+    } else {
+        this.callback = {};
+        this.args = {};
+        this.threadId = tid;
+        this.threadUid = tuid;
+        this.tid = id;
+        this.appThread = isapp;
+        this.spawnedThread = false;
+    }
+    
+    this.type = "Thread";
+}
+var $Thread = global.Thread;
+global.threads = new $Object();
+var $threads_spawned = new $Object();
+var $threads_spawned_finished = new $Object();
+
+global.spawnedThreadDispatcher = function(threadobj) {
+    //add the internally spawned thread to the list of threads
+    global.threads[threadobj.threadId] = threadobj;
+    $threads_spawned[threadobj.threadId]=true;;
+    
+    $current.thread = threadobj;
+    threadobj.callback.apply(null, threadobj.args);
+    $current.thread = {};
+    
+    $threads_spawned_finished[threadobj.threadId]=true;;
+    global.removeThread(threadobj.threadId);
+}
+
+global.addThread = function(id,tid,tuid,isapp) {
+    var t = new $Thread(id,tid,tuid,isapp);
+    global.threads[tid] = t;
+}
+
+global.removeThread = function(tid) {
+    delete global.threads[tid];
+}
+
+function ThreadWaitToFinish(timeout) {
+    if (!this.spawnedThread)
+        throw "We can only wait for our own internally spawned threads";
+    
+    //the thread has not started yet
+    if (!(this.threadId in $threads_spawned))
+        return false;
+    
+    if (IS_NULL_OR_UNDEFINED(timeout))
+        timeout = 0;
+
+    var current = 0;
+    while (!(this.threadId in $threads_spawned_finished)) {
+        global.PIN_Sleep(200);
+        current += 200;
+        if (timeout && current >= timeout)
+            return false;
+    }
+    
+    return true;
+}
+
+function ThreadWaitToStart(timeout) {
+    if (!this.spawnedThread)
+        throw "We can only wait for our own internally spawned threads";
+    
+    if (IS_NULL_OR_UNDEFINED(timeout))
+        timeout = 0;
+
+    var current = 0;
+    while (!(this.threadId in $threads_spawned)) {
+        global.PIN_Sleep(200);
+        current += 200;
+        if (timeout && current >= timeout)
+            return false;
+    }
+    
+    return true;
+}
+
+function ThreadToString() {
+    return "[Thread (os=" + this.tid + ", threadId=" + this.threadId + ")]";
+}
+
+function ThreadListToString() {
+    var ret=new $Array();
+    for (var x in global.threads)
+        ret.push(global.threads[x].toString());
+    return ret.toString();
+}
+
+function SetupThread() {
+    %FunctionSetInstanceClassName($Thread, 'Thread');
+    %SetProperty($Thread.prototype, "constructor", $Thread, DONT_ENUM);
+    InstallFunctions($Thread.prototype, DONT_ENUM, $Array(
+        "wait", ThreadWaitToFinish,
+        "waitStart", ThreadWaitToStart,
+        "toString", ThreadToString
+    ));
+    
+    InstallFunctions(global.threads, DONT_ENUM, $Array(
+        "toString", ThreadListToString
+    ));
+}
+
+
 function SetupPIN() {
   %CheckIsBootstrapping();
   
-  SetupControl();
-  
-  SetupProcess();
-
   SetupCurrent();
-  
+  SetupProcess();
+  SetupControl();
   SetupRoutines();
-
   SetupSemaphore();
-
   SetupImage();
-  
   SetupSection();
-  
   SetupSymbol();
-  
   SetupRoutine();
-  
   SetupInstruction();
-  
+  SetupTrace();
   SetupEvents();
-  
   SetupContext();
+  SetupRegister();
+  SetupThread();
 }
 
 SetupPIN();

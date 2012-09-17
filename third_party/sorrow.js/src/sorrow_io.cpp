@@ -150,6 +150,8 @@ namespace sorrow {
         if (args.Length() == 0) {
             return THROW(ERR(V8_STR("This method takes at least one parameter")))
         } else if (args.Length() == 1) {
+			if (!IS_BINARY(args[0]->ToObject()))
+				return THROW(ERR(V8_STR("Not currently supported")))
             Bytes *bytes = BYTES_FROM_BIN(args[0]->ToObject());
             data = bytes->getBytes();
             size = bytes->getLength();
