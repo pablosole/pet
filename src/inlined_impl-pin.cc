@@ -1468,4 +1468,174 @@ FUN(PIN_WaitForThreadTermination)
 	context()->Plug(if_true, if_false);
 }
 
+FUN(TRACE_BblHead)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+
+	const int argument_count = 1;
+
+	__ PrepareCallCFunction(argument_count, ebx);
+	__ mov (Operand(esp, kPointerSize * 0), eax);
+	__ CallCFunction(ExternalReference::TRACE_BblHead_function(isolate()), argument_count);
+	__ mov(ecx, eax);
+	__ CreateInteger(ecx, edi, eax, ebx);
+	context()->Plug(edi);
+}
+
+FUN(TRACE_BblTail)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+
+	const int argument_count = 1;
+
+	__ PrepareCallCFunction(argument_count, ebx);
+	__ mov (Operand(esp, kPointerSize * 0), eax);
+	__ CallCFunction(ExternalReference::TRACE_BblTail_function(isolate()), argument_count);
+	__ mov(ecx, eax);
+	__ CreateInteger(ecx, edi, eax, ebx);
+	context()->Plug(edi);
+}
+
+FUN(BBL_Next)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+
+	const int argument_count = 1;
+
+	__ PrepareCallCFunction(argument_count, ebx);
+	__ mov (Operand(esp, kPointerSize * 0), eax);
+	__ CallCFunction(ExternalReference::BBL_Next_function(isolate()), argument_count);
+	__ mov(ecx, eax);
+	__ CreateInteger(ecx, edi, eax, ebx);
+	context()->Plug(edi);
+}
+
+FUN(BBL_Prev)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+
+	const int argument_count = 1;
+
+	__ PrepareCallCFunction(argument_count, ebx);
+	__ mov (Operand(esp, kPointerSize * 0), eax);
+	__ CallCFunction(ExternalReference::BBL_Prev_function(isolate()), argument_count);
+	__ mov(ecx, eax);
+	__ CreateInteger(ecx, edi, eax, ebx);
+	context()->Plug(edi);
+}
+
+FUN(BBL_Valid)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	Label materialize_true, materialize_false;
+	Label *if_true = NULL;
+	Label *if_false = NULL;
+	Label *fall_through = NULL;
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+
+	const int argument_count = 1;
+
+	__ PrepareCallCFunction(argument_count, ebx);
+	__ mov (Operand(esp, 0), eax);
+	__ CallCFunction(ExternalReference::BBL_Valid_function(isolate()), argument_count);
+
+	context()->PrepareTest(&materialize_true, &materialize_false, &if_true, &if_false, &fall_through);
+	PrepareForBailoutBeforeSplit(expr, true, if_true, if_false);
+	__ test(eax, eax);
+	Split(not_zero, if_true, if_false, fall_through);
+	context()->Plug(if_true, if_false);
+}
+
+FUN(BBL_InsHead)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+
+	const int argument_count = 1;
+
+	__ PrepareCallCFunction(argument_count, ebx);
+	__ mov (Operand(esp, kPointerSize * 0), eax);
+	__ CallCFunction(ExternalReference::BBL_InsHead_function(isolate()), argument_count);
+	__ mov(ecx, eax);
+	__ CreateInteger(ecx, edi, eax, ebx);
+	context()->Plug(edi);
+}
+
+FUN(BBL_InsTail)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+
+	const int argument_count = 1;
+
+	__ PrepareCallCFunction(argument_count, ebx);
+	__ mov (Operand(esp, kPointerSize * 0), eax);
+	__ CallCFunction(ExternalReference::BBL_InsTail_function(isolate()), argument_count);
+	__ mov(ecx, eax);
+	__ CreateInteger(ecx, edi, eax, ebx);
+	context()->Plug(edi);
+}
+
+FUN(BBL_Address)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+
+	const int argument_count = 1;
+
+	__ PrepareCallCFunction(argument_count, ebx);
+	__ mov (Operand(esp, kPointerSize * 0), eax);
+	__ CallCFunction(ExternalReference::BBL_Address_function(isolate()), argument_count);
+	__ mov(ecx, eax);
+	__ CreateInteger(ecx, edi, eax, ebx);
+	context()->Plug(edi);
+}
+
+FUN(BBL_Size)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+
+	const int argument_count = 1;
+
+	__ PrepareCallCFunction(argument_count, ebx);
+	__ mov (Operand(esp, kPointerSize * 0), eax);
+	__ CallCFunction(ExternalReference::BBL_Size_function(isolate()), argument_count);
+	__ mov(ecx, eax);
+	__ CreateInteger(ecx, edi, eax, ebx);
+	context()->Plug(edi);
+}
+
 #undef FUN

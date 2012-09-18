@@ -98,6 +98,15 @@
 	PIN_FUN(TRACE_Size, 1, 1, 76, F) \
 	PIN_FUN(PIN_RemoveInstrumentation, 0, 0, 77, F) \
 	PIN_FUN(PIN_WaitForThreadTermination, 2, 1, 78, F) \
+	PIN_FUN(TRACE_BblHead, 1, 1, 79, F) \
+	PIN_FUN(TRACE_BblTail, 1, 1, 80, F) \
+	PIN_FUN(BBL_Valid, 1, 1, 81, F) \
+	PIN_FUN(BBL_Prev, 1, 1, 82, F) \
+	PIN_FUN(BBL_Next, 1, 1, 83, F) \
+	PIN_FUN(BBL_InsHead, 1, 1, 84, F) \
+	PIN_FUN(BBL_InsTail, 1, 1, 85, F) \
+	PIN_FUN(BBL_Address, 1, 1, 86, F) \
+	PIN_FUN(BBL_Size, 1, 1, 87, F) \
 	
 
 

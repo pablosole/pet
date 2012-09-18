@@ -59,6 +59,13 @@
     
     internals.fire = Lib.require('event').fire;
     
+    internals.loadScript = function(text) {
+      var Module = Lib.require('module').Module;
+      
+      var tmp = new Module(0, "internal", null, text);
+      tmp.load();
+    }
+    
     internals.loadMain = function() {
     
       var Module = Lib.require('module').Module;

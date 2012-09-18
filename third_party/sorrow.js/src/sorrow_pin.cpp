@@ -468,8 +468,257 @@ VOID InternalThreadProxy(VOID *arg) {
 	pobj.Dispose();
 }
 
+VOID InsertCallProxy(PinContext *context, AnalysisFunction *af, uint32_t argc, ...)
+{
+	va_list argptr;
+
+	//bailout before doing anything else
+	if (!af->IsEnabled())
+		return;
+
+	//bailout if the JS context is not ready yet
+	if (context->GetState() != PinContext::INITIALIZED_CONTEXT)
+		return;
+
+	Isolate::Scope iscope(context->GetIsolate());
+	Locker lock(context->GetIsolate());
+	HandleScope hscope;
+	Context::Scope cscope(context->GetContext());
+
+	Persistent<Function> fun = context->EnsureFunction(af);
+
+	va_start(argptr, argc);
+
+	//_malloca allocates from the stack unless the size is >1024
+	//stack allocation is faster than heap and in that case _freea becomes basically a NOOP
+	Handle<Value> *argv = reinterpret_cast<Handle<Value> *>(_malloca(sizeof(char *) * argc));
+
+	for (uint32_t x=0; x < argc; x++)
+		argv[x] = Uint32::NewFromUnsigned(va_arg(argptr, uint32_t));
+
+	va_end(argptr);
+
+	TryCatch trycatch;
+
+	fun->FastCall(context->GetIsolate(), *(context->GetContext()), context->GetGlobal(), argc, argv);
+
+	if (trycatch.HasCaught())
+	{
+		af->IncException();
+		af->SetLastException(ReportExceptionToString(&trycatch));
+		DEBUG("Exception on AF: " << af->GetLastException());
+
+		//Disable the function if there's too many exceptions
+		if (af->GetNumExceptions() > af->GetThreshold() || !trycatch.CanContinue())
+			af->Disable();
+	}
+
+	_freea(argv);
+}
+
+
 namespace sorrow {
 	using namespace v8;
+
+    V8_FUNCTN(InsertCall) {
+        HandleScope scope;
+
+		if (args.Length() != 4 || !args[0]->IsNumber() || !args[1]->IsNumber() || !args[2]->IsObject() || !args[3]->IsNumber())
+			return ThrowException(String::New("wrong arguments"));
+
+		TryCatch try_catch;
+
+		RTN rtn;
+		INS ins;
+		BBL bbl;
+		TRACE trace;
+
+		uint32_t type = NumberToUint32(args[3], &try_catch);
+		if (try_catch.HasCaught()) return try_catch.Exception();
+		IPOINT point = (IPOINT)NumberToUint32(args[1], &try_catch);
+		if (try_catch.HasCaught()) return try_catch.Exception();
+
+		Local<Object> obj = args[2]->ToObject();
+		AnalysisFunction *af = (AnalysisFunction *)obj->GetPointerFromInternalField(0);
+		uint32_t index=0;
+
+		index = NumberToUint32(args[0], &try_catch);
+		if (try_catch.HasCaught()) return try_catch.Exception();
+
+		switch (type) {
+			case 0:
+				rtn.index = index;
+				RTN_InsertCall(rtn, point, (AFUNPTR)InsertCallProxy, \
+				IARG_PRESERVE, &ctxmgr->GetPreservedRegset(), \
+				IARG_REG_VALUE, ctxmgr->GetPerThreadContextReg(), \
+				IARG_PTR, af, \
+				IARG_UINT32, af->GetArgumentCount(), \
+				IARG_IARGLIST, af->GetArguments(), \
+				IARG_END);
+				break;
+			case 1:
+				ins.index = index;
+				INS_InsertCall(ins, point, (AFUNPTR)InsertCallProxy, \
+				IARG_PRESERVE, &ctxmgr->GetPreservedRegset(), \
+				IARG_REG_VALUE, ctxmgr->GetPerThreadContextReg(), \
+				IARG_PTR, af, \
+				IARG_UINT32, af->GetArgumentCount(), \
+				IARG_IARGLIST, af->GetArguments(), \
+				IARG_END);
+				break;
+			case 2:
+				bbl.index = index;
+				BBL_InsertCall(bbl, point, (AFUNPTR)InsertCallProxy, \
+				IARG_PRESERVE, &ctxmgr->GetPreservedRegset(), \
+				IARG_REG_VALUE, ctxmgr->GetPerThreadContextReg(), \
+				IARG_PTR, af, \
+				IARG_UINT32, af->GetArgumentCount(), \
+				IARG_IARGLIST, af->GetArguments(), \
+				IARG_END);
+				break;
+			case 3:
+				trace = (TRACE)index;
+				TRACE_InsertCall(trace, point, (AFUNPTR)InsertCallProxy, \
+				IARG_PRESERVE, &ctxmgr->GetPreservedRegset(), \
+				IARG_REG_VALUE, ctxmgr->GetPerThreadContextReg(), \
+				IARG_PTR, af, \
+				IARG_UINT32, af->GetArgumentCount(), \
+				IARG_IARGLIST, af->GetArguments(), \
+				IARG_END);
+				break;
+		}
+
+		return Undefined();
+	}
+
+    void ArgsArrayWeakCallback(Persistent<Value> object, void* ptr) {
+		HandleScope scope;
+		IARGLIST_Free((IARGLIST)ptr);
+		object.Dispose();
+    }
+
+    V8_FUNCTN(ArgsArrayConstructor) {
+        HandleScope scope;
+        Handle<Object> op = args.This();
+
+		TryCatch try_catch;
+		uint32_t type;
+		uint32_t value;
+		uint32_t num_args = 0;
+
+		if (args.Length() != 2 || !args[0]->IsObject())
+			return ThrowException(String::New("wrong arguments"));
+
+		uint32_t indexes = NumberToUint32(args[1], &try_catch);
+		if (try_catch.HasCaught()) return try_catch.Exception();
+		Local<Object> args_arr = args[0]->ToObject();
+		Local<Value> item;
+
+		IARGLIST list = IARGLIST_Alloc();
+		for (uint32_t idx=0; idx < indexes; idx++) {
+			item = args_arr->Get(idx);
+
+			//this is an argument pair
+			if (item->IsArray()) {
+				Local<Object> pair = item->ToObject();
+
+				type = NumberToUint32(pair->Get(0), &try_catch);
+				if (try_catch.HasCaught()) {
+					IARGLIST_Free(list);
+					return try_catch.Exception();
+				}
+				value = NumberToUint32(pair->Get(1), &try_catch);
+				if (try_catch.HasCaught()) {
+					IARGLIST_Free(list);
+					return try_catch.Exception();
+				}
+
+				IARGLIST_AddArguments(list, type, value, IARG_END);
+				num_args++;
+			} else {
+				type = NumberToUint32(item, &try_catch);
+				if (try_catch.HasCaught()) {
+					IARGLIST_Free(list);
+					return try_catch.Exception();
+				}
+
+				IARGLIST_AddArguments(list, type, IARG_END);
+				num_args++;
+			}
+		}
+
+		Persistent<Object> persistent_op = Persistent<Object>::New(op);
+		persistent_op.MakeWeak(list, ArgsArrayWeakCallback);
+		persistent_op.MarkIndependent();
+
+		op->SetPointerInInternalField(0, list);
+		op->SetPointerInInternalField(1, (void *)num_args);
+		return op;
+	}
+
+    V8_FUNCTN(GetEnabledAnalysisFunction) {
+        HandleScope scope;
+
+		if (args.Length() != 1)
+			return ThrowException(String::New("GetEnabledAnalysisFunction needs 1 parameter"));
+
+		if (!args[0]->IsObject())
+			return ThrowException(String::New("wrong argument types"));
+
+		Local<Object> obj = args[0]->ToObject();
+		AnalysisFunction *af = (AnalysisFunction *)obj->GetPointerFromInternalField(0);
+		Handle<Value> ret = Boolean::New(af->IsEnabled());
+
+		return scope.Close(ret);
+	}
+
+    V8_FUNCTN(SetEnabledAnalysisFunction) {
+        HandleScope scope;
+
+		if (args.Length() != 2)
+			return ThrowException(String::New("SetEnabledAnalysisFunction needs 2 parameters"));
+
+		if (!args[0]->IsObject() || !args[1]->IsBoolean())
+			return ThrowException(String::New("wrong argument types"));
+
+		Local<Object> obj = args[0]->ToObject();
+		AnalysisFunction *af = (AnalysisFunction *)obj->GetPointerFromInternalField(0);
+		
+		if (args[1]->IsTrue())
+			af->Enable();
+		else
+			af->Disable();
+
+		return Undefined();
+	}
+
+    V8_FUNCTN(CreateAnalysisFunction) {
+        HandleScope scope;
+
+		if (args.Length() != 3)
+			return ThrowException(String::New("createAF needs 3 parameters"));
+
+		if (!args[0]->IsString() || !args[1]->IsString() || !args[2]->IsObject())
+			return ThrowException(String::New("wrong argument types"));
+
+		Local<String> body = args[0]->ToString();
+		Local<String> init = args[1]->ToString();
+		Local<Object> args_obj = args[2]->ToObject();
+		IARGLIST arglist = (IARGLIST) args_obj->GetPointerFromInternalField(0);
+		uint32_t nargs = (uint32_t) args_obj->GetPointerFromInternalField(1);
+
+		v8::String::Utf8Value body_utf8(body);
+		v8::String::Utf8Value init_utf8(init);
+
+		AnalysisFunction *af = ctxmgr->AddFunction(ToCString(body_utf8), ToCString(init_utf8));
+		af->SetArguments(arglist, nargs);
+		
+		Local<Value> arg[1];
+		arg[0] = Integer::NewFromUnsigned((uint32_t)af);
+		Local<Object> ptr = ctxmgr->GetSorrowContext()->GetPointerTypes()->GetExternalPointerFunct()->NewInstance(1, arg);
+
+		return scope.Close(ptr);
+	}
 
     V8_FUNCTN(SpawnThread) {
         HandleScope scope;
@@ -731,9 +980,19 @@ namespace sorrow {
 		ownstr_t->SetClassName(V8_STR("OwnString"));
 		target->Set(V8_STR("OwnString"), ownstr);
 
+		Local<FunctionTemplate> argsarray_t = FunctionTemplate::New(ArgsArrayConstructor);
+        Local<ObjectTemplate> argsarray_ot = argsarray_t->InstanceTemplate();
+		argsarray_ot->SetInternalFieldCount(2);  //IARGLIST, num_args
+		argsarray_t->SetClassName(V8_STR("IntArgsArray"));
+		target->Set(V8_STR("IntArgsArray"), argsarray_t->GetFunction());
+
 		SET_METHOD(target, "addEventProxy", AddEventProxy);
 		SET_METHOD(target, "SpawnThread", SpawnThread);
 		SET_METHOD(target, "PIN_Sleep", PIN_Sleep_v8);
+		SET_METHOD(target, "createAF", CreateAnalysisFunction);
+		SET_METHOD(target, "getEnabledAF", GetEnabledAnalysisFunction);
+		SET_METHOD(target, "setEnabledAF", SetEnabledAnalysisFunction);
+		SET_METHOD(target, "InsertCall", InsertCall);
 	}
 
 	PointerTypes::~PointerTypes() {

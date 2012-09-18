@@ -82,6 +82,26 @@ namespace sorrow {
 		return scope.Close(ret);
 	}
 
+	void SorrowContext::LoadScript(const char *text, uint32_t size) {
+		HandleScope handle_scope;
+		TryCatch tryCatch;
+
+		Local<Value> func = internals->Get(String::New("loadScript"));
+		
+		ASSERT_PIN(func->IsFunction(), "loadScript not found");
+		Local<Function> f = Local<Function>::Cast(func);
+		
+		Local<Object> global = Context::GetCurrent()->Global();
+		Local<Value> argv[1] = { String::New(text, size) };
+		
+		f->Call(global, 1, argv);
+		
+		if (tryCatch.HasCaught())  {
+			ReportException(&tryCatch);
+			KillPinTool();
+		}
+	}
+
 	void SorrowContext::LoadMain() {
 		HandleScope handle_scope;
 		TryCatch tryCatch;
@@ -97,7 +117,7 @@ namespace sorrow {
 		
 		if (tryCatch.HasCaught())  {
 			ReportException(&tryCatch);
-			exit(11);
+			KillPinTool();
 		}
 	}
 

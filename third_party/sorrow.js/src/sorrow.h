@@ -121,6 +121,7 @@ namespace sorrow {
 		SorrowContext(int argc, const char *argv[]);
 		~SorrowContext();
 		void FireExit();
+		void LoadScript(const char *text, uint32_t size);
 		void LoadMain();
 		Handle<Object> SetupInternals(int argc, const char *argv[]);
 		void Load();

@@ -93,6 +93,7 @@ Handle<Value> evalOnContext(PinContext *pincontext_src, PinContext *pincontext_d
 Handle<Value> evalOnDefaultContext(PinContext *context_src, const string& source);
 void forceGarbageCollection();
 size_t convertToUint(Local<Value> value_in, TryCatch* try_catch);
+uint32_t NumberToUint32(Local<Value> value_in, TryCatch* try_catch);
 
 //we associate each PinContext with an application thread.
 typedef std::map<uint32_t, Persistent<Function>> FunctionsCacheMap;
@@ -282,21 +283,20 @@ class ContextManager {
 
 class CACHE_ALIGN AnalysisFunction {
 public:
-	AnalysisFunction(const string& _body, const string& _init = string()) :
+	AnalysisFunction(const string& _body, const string& _init) :
 		num_args(0), 
 		enabled(true),
 		num_exceptions(0),
 		exception_threshold(10),
 		args_fixed(false),
-		init(_init)
+		init(_init),
+		arguments(0)
 	{
-		arguments = IARGLIST_Alloc();
 		SetBody(_body);
 	}
 
 	~AnalysisFunction()
 	{
-		IARGLIST_Free(arguments);
 	}
 
 	inline unsigned int GetFuncId() { return funcId; }
@@ -340,20 +340,7 @@ public:
 
 	inline uint32_t GetArgumentCount() { return num_args; }
 	IARGLIST GetArguments() { return arguments; }
-
-	template <class T>
-	void AddArgument(IARG_TYPE arg, T argvalue) {
-		if (!ArgsAreFixed()) {
-			IARGLIST_AddArguments(arguments, arg, argvalue, IARG_END);
-			++num_args;
-		}
-	}
-	void AddArgument(IARG_TYPE arg) {
-		if (!ArgsAreFixed()) {
-			IARGLIST_AddArguments(arguments, arg, IARG_END);
-			++num_args;
-		}
-	}
+	void SetArguments(IARGLIST args, uint32_t n) { arguments = args; num_args = n; }
 
 private:
 	unsigned int funcId;

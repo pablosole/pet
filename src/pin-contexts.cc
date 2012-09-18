@@ -23,14 +23,14 @@ bool PinContext::CreateJSContext()
 		if (!context.IsEmpty()) {
 			//this is the "receiver" argument for Invoke, it's the "this" of the function called
 			Context::Scope cscope(context);
+			sorrowctx = new SorrowContext(0, NULL);
+
 			i::Object** ctx = reinterpret_cast<i::Object**>(*context);
 			i::Handle<i::Context> internal_context = i::Handle<i::Context>::cast(i::Handle<i::Object>(ctx));
 			i::GlobalObject *internal_global = internal_context->global();
 			i::Handle<i::JSObject> receiver(internal_global->global_receiver());
 			Local<Object> receiver_local(Utils::ToLocal(receiver));
 			global = Persistent<Object>::New(receiver_local);
-
-			sorrowctx = new SorrowContext(0, NULL);
 		}
 		//Scope and Locker are destroyed here.
 	}
@@ -131,20 +131,14 @@ Persistent<Function> PinContext::EnsureFunctionSlow(AnalysisFunction *af)
 	Handle<Script> script = Script::Compile(source);
 	if (trycatch.HasCaught()) {
 		DEBUG("Exception compiling on TID:" << GetTid());
-		af->SetLastException(ReportExceptionToString(&trycatch));
-		DEBUG(af->GetLastException());
-		//If the function is broken, disable the execution of this AF
-		af->Disable();
-		return Persistent<Function>();
+		DEBUG(ReportExceptionToString(&trycatch));
+		KillPinTool();
 	}
 
 	Handle<Value> fun_val = script->Run();
 	if (!fun_val->IsFunction()) {
 		DEBUG("Function body didn't create a function on TID:" << GetTid());
-		af->SetLastException(string("Function body didn't create a function."));
-		//If the function is broken, disable the execution of this AF
-		af->Disable();
-		return Persistent<Function>();
+		KillPinTool();
 	}
 
 	Persistent<Function> newfun = Persistent<Function>::New(Handle<Function>::Cast(fun_val));
@@ -158,22 +152,7 @@ Persistent<Function> PinContext::EnsureFunctionSlow(AnalysisFunction *af)
 
 	const string& init = af->GetInit();
 	if (!init.empty()) {
-		source = String::New(init.c_str());
-		script = Script::Compile(source);
-		if (trycatch.HasCaught()) {
-			af->SetLastException(ReportExceptionToString(&trycatch));
-			DEBUG(af->GetLastException());
-			//If the function is broken, disable the execution of this AF
-			af->Disable();
-		} else {
-			script->Run();
-			if (trycatch.HasCaught()) {
-				af->SetLastException(ReportExceptionToString(&trycatch));
-				DEBUG(af->GetLastException());
-				//If the function is broken, disable the execution of this AF
-				af->Disable();
-			}
-		}
+		sorrowctx->LoadScript(init.c_str(), init.size());
 	}
 
 	funcache[af->GetHash()] = newfun;

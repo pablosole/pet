@@ -5,12 +5,13 @@
 var fs = require('fs');
 var Lib = require('stdlib');
 
-function Module(id, filename, parent) {
+function Module(id, filename, parent, script) {
     this.id = id;
     this.filename = filename;
     this.parent = parent;
     this.exports = {};
     this.loaded = false;
+    this.script = script;
 }
 
 Module._cache = {};
@@ -35,7 +36,11 @@ Module.prototype.load = function() {
     }
     
     require.main = self.main;
-    var script = fs.open(this.filename,'rb').read().decodeToString('utf-8');
+    if (this.filename == "internal")
+	var script = "(" + this.script + ")();";
+    else
+	var script = fs.open(this.filename,'rb').read().decodeToString('utf-8');
+
     script = script.replace(/^#!.*/, '');
     var wrappedScript = Module.wrap(script);
     var fn = internals.compile(wrappedScript, this.filename);

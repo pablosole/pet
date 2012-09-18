@@ -530,6 +530,29 @@ global.Routine = function(external, sec) {
 var $Routine = global.Routine;
 var $routine_opened = null;
 
+function IPointToNumber(point) {
+    if (IS_NUMBER(point))
+        return point;
+    
+    point = point.toLowerCase();
+    switch (point) {
+        case "before": return 1;  //IPOINT_BEFORE
+        case "after": return 2;   //IPOINT_AFTER
+        case "anywhere": return 3;//IPOINT_ANYWHERE
+        case "taken_branch":      //IPOINT_TAKEN_BRANCH
+        case "taken":
+        case "branch": return 4;
+    }
+    
+    throw "invalid IPOINT name";
+}
+
+function RTN_InsertCall(point, af) {
+    this.open();
+    global.InsertCall(this.external, IPointToNumber(point), af.external, 0);
+    this.close();
+}
+
 function RTN_Close() {
     if (!IS_NULL($routine_opened)) {
         %_RTN_Close($routine_opened);
@@ -588,6 +611,7 @@ function SetupRoutine() {
     "open", RTN_Open,
     "isOpen", RTN_IsOpen,  
     "close", RTN_Close, 
+    "attach", RTN_InsertCall,
     "forEachInstruction", RoutineForEachInstruction,
     "assert", ExternalAssert,
     "destroy", ExternalDestroy
@@ -653,13 +677,18 @@ function INS_Disassemble() {
     return %_JSStringFromCString(%_UnwrapPointer(tmp));
 }
 
+function INS_InsertCall(point, af) {
+    global.InsertCall(this.external, IPointToNumber(point), af.external, 1);
+}
+
 function SetupInstruction() {
   %FunctionSetInstanceClassName($Instruction, 'Instruction');
   %SetProperty($Instruction.prototype, "constructor", $Instruction, DONT_ENUM);
   InstallFunctions($Instruction.prototype, DONT_ENUM, $Array(
     "assert", ExternalAssert,
     "destroy", ExternalDestroy,
-    'toString', INS_Disassemble
+    'toString', INS_Disassemble,
+    "attach", INS_InsertCall
   ));
   
   InstallROAccessors($Instruction.prototype, $Array(
@@ -699,20 +728,126 @@ function TRACE_Size() {
     return %_TRACE_Size(this.external);
 }
 
+function TRACE_InsertCall(point, af) {
+    global.InsertCall(this.external, IPointToNumber(point), af.external, 3);
+}
+
+function TRACE_BblHead(external) {
+    return new $BBL(%_TRACE_BblHead(this.external), this);
+}
+
+function TRACE_BblTail() {
+    return new $BBL(%_TRACE_BblTail(this.external), this);
+}
+
 function SetupTrace() {
   %FunctionSetInstanceClassName($Trace, 'Trace');
   %SetProperty($Trace.prototype, "constructor", $Trace, DONT_ENUM);
   InstallFunctions($Trace.prototype, DONT_ENUM, $Array(
     "assert", ExternalAssert,
-    "destroy", ExternalDestroy
+    "destroy", ExternalDestroy,
+    "attach", TRACE_InsertCall
   ));
   
   InstallROAccessors($Trace.prototype, $Array(
       'routine', TRACE_Rtn,
       'address', TRACE_Address,
-      'size', TRACE_Size
+      'size', TRACE_Size,
+      'bblHead', TRACE_BblHead,
+      'bblTail', TRACE_BblTail,
+      'basicblocks', BBLListConstructor
   ));
 }
+
+
+/************************************************************************/
+/* basicblock object                                                    */
+/************************************************************************/
+function BBLListConstructor() {
+    var arr = new $Array();
+    var head = this.bblHead;
+    while (head.valid) {
+        arr.push(head);
+        head = head.next;
+    }
+    
+    return arr;
+}
+global.BBL = function(external, trace) {
+    if (!%_IsConstructCall()) {
+        return new $Trace(external);
+    }
+    
+    this.trace = trace;
+    this.external = external;
+    this.type = "BBL";
+}
+var $BBL = global.BBL;
+
+function BBL_Valid() {
+    return %_BBL_Valid(this.external);
+}
+
+function BBL_InsHead() {
+    return new $Instruction(%_BBL_InsHead(this.external));
+}
+
+function BBL_InsTail() {
+    return new $Instruction(%_BBL_InsTail(this.external));
+}
+
+function BBL_Next() {
+    return new $BBL(%_BBL_Next(this.external), this.trace);
+}
+
+function BBL_Prev() {
+    return new $BBL(%_BBL_Prev(this.external), this.trace);
+}
+
+function BBL_Address() {
+    return %_BBL_Address(this.external);
+}
+
+function BBL_Size() {
+    return %_BBL_Size(this.external);
+}
+
+function BBL_InsertCall(point, af) {
+    global.InsertCall(this.external, IPointToNumber(point), af.external, 2);
+}
+
+function BBLInstructionListConstructor() {
+    var arr = new $Array();
+    var head = this.instructionHead;
+    while (head.valid) {
+        arr.push(head);
+        head = head.next;
+    }
+    
+    return arr;
+}
+
+function SetupBBL() {
+  %FunctionSetInstanceClassName($BBL, 'BBL');
+  %SetProperty($BBL.prototype, "constructor", $BBL, DONT_ENUM);
+  InstallFunctions($BBL.prototype, DONT_ENUM, $Array(
+    "assert", ExternalAssert,
+    "destroy", ExternalDestroy,
+    "attach", BBL_InsertCall
+  ));
+  
+  InstallROAccessors($BBL.prototype, $Array(
+      'valid', BBL_Valid,
+      'instructionHead', BBL_InsHead,
+      'instructionTail', BBL_InsTail,
+      'instructions', BBLInstructionListConstructor,
+      'next', BBL_Next, 
+      'prev', BBL_Prev, 
+      'address', BBL_Address,
+      'size', BBL_Size
+  ));
+}
+
 
 /************************************************************************/
 /* event object                                                         */
@@ -1030,14 +1165,16 @@ global.Context = function(external) {
 var $Context = global.Context;
 
 function PIN_GetContextReg(reg) {
-    return %_PIN_GetContextReg(this.external, reg.external);
+    var tmp = reg.external;
+    return %_PIN_GetContextReg(this.external, tmp);
 }
 
 function PIN_SetContextReg(reg, val) {
     if (this.fixed)
         throw "Cannot set a register on a read-only Context";
     
-    %_PIN_SetContextReg(this.external, reg.external, val);
+    var tmp = reg.external;
+    %_PIN_SetContextReg(this.external, tmp, val);
 }
 
 function PIN_ContextContainsState(state) {
@@ -1613,6 +1750,285 @@ function SetupThread() {
 }
 
 
+/************************************************************************/
+/* AnalysisFunction object                                              */
+/************************************************************************/
+global.AnalysisFunction = function(fun,init,args) {
+    if (!%_IsConstructCall()) {
+        return new $AnalysisFunction(fun,init,args);
+    }
+    
+    if (IS_FUNCTION(fun))
+        fun = fun.toString();
+    
+    if (!IS_STRING(fun))
+        throw "function callback is not a function source string";
+    
+    if (IS_NULL_OR_UNDEFINED(args))
+        args = new $ArgsArray();
+    if (IS_NULL_OR_UNDEFINED(init))
+        init = "function() {}";
+    else if (IS_FUNCTION(init))
+        init = init.toString();
+    
+    if (!IS_STRING(init))
+        throw "initialization callback is not a function source string";
+        
+    this.external = global.createAF(fun, init, args.external);
+    this.callback = fun;
+    this.init = init;
+    this.args = args;
+    
+    this.type = "AnalysisFunction";
+}
+var $AnalysisFunction = global.AnalysisFunction;
+
+function AnalysisFunctionEnabledGetter() {
+    return global.getEnabledAF(this.external);
+}
+
+function AnalysisFunctionEnabledSetter(val) {
+    var tmp = ToBoolean(val);
+    return global.setEnabledAF(this.external, tmp);
+}
+
+function SetupAnalysisFunction() {
+    %FunctionSetInstanceClassName($AnalysisFunction, 'AnalysisFunction');
+    %SetProperty($AnalysisFunction.prototype, "constructor", $AnalysisFunction, DONT_ENUM);
+    
+    %DefineOrRedefineAccessorProperty($AnalysisFunction.prototype, "enabled", AnalysisFunctionEnabledGetter, AnalysisFunctionEnabledSetter, DONT_DELETE);
+}
+
+
+/************************************************************************/
+/* ArgsArray object                                                     */
+/************************************************************************/
+global.ArgsArray = function() {
+    if (!%_IsConstructCall()) {
+        throw "ArgsArray is a constructor function";
+    }
+    
+    var len = %_ArgumentsLength();
+    this.external = new global.IntArgsArray(arguments, len);
+    
+    this.type = "ArgsArray";
+    this.args = arguments;
+}
+var $ArgsArray = global.ArgsArray;
+
+function ArgsArrayToString() {
+    var arr=new $Array();
+    for (var x=0;x < this.args.length;x++) {
+        var item = this.args[x];
+        if (IS_ARRAY(item))
+            arr.push("["+global.ArgTypes[item[0]] + ":0x" + item[1].toString(16)+"]");
+        else
+            arr.push("[0x"+item.toString(16)+"]");
+    }
+    
+    return arr.toString();
+}
+
+function SetupArgsArray() {
+    %FunctionSetInstanceClassName($ArgsArray, 'ArgsArray');
+    %SetProperty($ArgsArray.prototype, "constructor", $ArgsArray, DONT_ENUM);
+    
+    InstallFunctions($ArgsArray.prototype, DONT_ENUM, $Array(
+        "toString", ArgsArrayToString
+    ));
+}
+
+
+function SetupHandyFunctions() {
+    global.Number.prototype.hex = function() { return this.toString(16); }
+    global.Number.prototype.bin = function() { return this.toString(2); }
+    global.String.prototype.slice = function(start,stop) {
+        if (!stop) stop = start;
+        if (stop < 0) stop = this.length + stop;
+        if (start < 0) start = this.length + start;
+        return this.substr(start, stop-start+1);
+    }
+}
+
+function SetupArgumentTypeConstants() {
+    global.IARG_INVALID=0;
+    global.IARG_ADDRINT=1;
+    global.IARG_PTR=2;
+    global.IARG_BOOL=3;
+    global.IARG_UINT32=4;
+    global.IARG_INST_PTR=5;
+    global.IARG_REG_VALUE=6;
+    global.IARG_REG_REFERENCE=7;
+    global.IARG_REG_CONST_REFERENCE=8;
+    global.IARG_MEMORYREAD_EA=9;
+    global.IARG_MEMORYREAD2_EA=10;
+    global.IARG_MEMORYWRITE_EA=11;
+    global.IARG_MEMORYREAD_SIZE=12;
+    global.IARG_MEMORYWRITE_SIZE=13;
+    global.IARG_MEMORYREAD_PTR=14;
+    global.IARG_MEMORYREAD2_PTR=15;
+    global.IARG_MEMORYWRITE_PTR=16;
+    global.IARG_MEMORYOP_PTR=17;
+    global.IARG_MULTI_MEMORYACCESS_EA=18;
+    global.IARG_BRANCH_TAKEN=19;
+    global.IARG_BRANCH_TARGET_ADDR=20;
+    global.IARG_FALLTHROUGH_ADDR=21;
+    global.IARG_EXECUTING=22;
+    global.IARG_FIRST_REP_ITERATION=23;
+    global.IARG_PREDICATE=24;
+    global.IARG_STACK_VALUE=25;
+    global.IARG_STACK_REFERENCE=26;
+    global.IARG_MEMORY_VALUE=27;
+    global.IARG_MEMORY_REFERENCE=28;
+    global.IARG_SYSCALL_NUMBER=29;
+    global.IARG_SYSARG_REFERENCE=30;
+    global.IARG_SYSARG_VALUE=31;
+    global.IARG_SYSRET_VALUE=32;
+    global.IARG_SYSRET_ERRNO=33;
+    global.IARG_FUNCARG_CALLSITE_REFERENCE=34;
+    global.IARG_FUNCARG_CALLSITE_VALUE=35;
+    global.IARG_FUNCARG_ENTRYPOINT_REFERENCE=36;
+    global.IARG_FUNCARG_ENTRYPOINT_VALUE=37;
+    global.IARG_FUNCRET_EXITPOINT_REFERENCE=38;
+    global.IARG_FUNCRET_EXITPOINT_VALUE=39;
+    global.IARG_RETURN_IP=40;
+    global.IARG_ORIG_FUNCPTR=41;
+    global.IARG_PROTOTYPE=42;
+    global.IARG_THREAD_ID=43;
+    global.IARG_CONTEXT=44;
+    global.IARG_CONST_CONTEXT=45;
+    global.IARG_PARTIAL_CONTEXT=46;
+    global.IARG_PRESERVE=47;
+    global.IARG_RETURN_REGS=48;
+    global.IARG_CALL_ORDER=49;
+    global.IARG_REG_NAT_VALUE=50;
+    global.IARG_REG_OUTPUT_FRAME_VALUE=51;
+    global.IARG_REG_OUTPUT_FRAME_REFERENCE=52;
+    global.IARG_IARGLIST=53;
+    global.IARG_FAST_ANALYSIS_CALL=54;
+    global.IARG_SYSCALL_ARG0=55;
+    global.IARG_SYSCALL_ARGBASE=55;
+    global.IARG_SYSCALL_ARG1=56;
+    global.IARG_SYSCALL_ARG2=57;
+    global.IARG_SYSCALL_ARG3=58;
+    global.IARG_SYSCALL_ARG4=59;
+    global.IARG_SYSCALL_ARG5=60;
+    global.IARG_SYSCALL_ARGLAST=60;
+    global.IARG_G_RESULT0=61;
+    global.IARG_G_RETBASE=61;
+    global.IARG_G_RESULTLAST=61;
+    global.IARG_G_ARG0_CALLEE=62;
+    global.IARG_G_ARGBASE_CALLEE=62;
+    global.IARG_G_ARG1_CALLEE=63;
+    global.IARG_G_ARG2_CALLEE=64;
+    global.IARG_G_ARG3_CALLEE=65;
+    global.IARG_G_ARG4_CALLEE=66;
+    global.IARG_G_ARG5_CALLEE=67;
+    global.IARG_G_ARGLAST_CALLEE=67;
+    global.IARG_G_ARG0_CALLER=68;
+    global.IARG_G_ARGBASE_CALLER=68;
+    global.IARG_G_ARG1_CALLER=69;
+    global.IARG_G_ARG2_CALLER=70;
+    global.IARG_G_ARG3_CALLER=71;
+    global.IARG_G_ARG4_CALLER=72;
+    global.IARG_G_ARG5_CALLER=73;
+    global.IARG_G_ARGLAST_CALLER=73;
+    global.IARG_MEMORYOP_EA=74;
+    global.IARG_MEMORYOP_MASKED_ON=75;
+    global.IARG_TSC=76;
+    global.IARG_FILE_NAME=77;
+    global.IARG_LINE_NO=78;
+
+    global.ArgTypes = new $Object();
+    global.ArgTypes[0]="IARG_INVALID";
+    global.ArgTypes[1]="IARG_ADDRINT";
+    global.ArgTypes[2]="IARG_PTR";
+    global.ArgTypes[3]="IARG_BOOL";
+    global.ArgTypes[4]="IARG_UINT32";
+    global.ArgTypes[5]="IARG_INST_PTR";
+    global.ArgTypes[6]="IARG_REG_VALUE";
+    global.ArgTypes[7]="IARG_REG_REFERENCE";
+    global.ArgTypes[8]="IARG_REG_CONST_REFERENCE";
+    global.ArgTypes[9]="IARG_MEMORYREAD_EA";
+    global.ArgTypes[10]="IARG_MEMORYREAD2_EA";
+    global.ArgTypes[11]="IARG_MEMORYWRITE_EA";
+    global.ArgTypes[12]="IARG_MEMORYREAD_SIZE";
+    global.ArgTypes[13]="IARG_MEMORYWRITE_SIZE";
+    global.ArgTypes[14]="IARG_MEMORYREAD_PTR";
+    global.ArgTypes[15]="IARG_MEMORYREAD2_PTR";
+    global.ArgTypes[16]="IARG_MEMORYWRITE_PTR";
+    global.ArgTypes[17]="IARG_MEMORYOP_PTR";
+    global.ArgTypes[18]="IARG_MULTI_MEMORYACCESS_EA";
+    global.ArgTypes[19]="IARG_BRANCH_TAKEN";
+    global.ArgTypes[20]="IARG_BRANCH_TARGET_ADDR";
+    global.ArgTypes[21]="IARG_FALLTHROUGH_ADDR";
+    global.ArgTypes[22]="IARG_EXECUTING";
+    global.ArgTypes[23]="IARG_FIRST_REP_ITERATION";
+    global.ArgTypes[24]="IARG_PREDICATE";
+    global.ArgTypes[25]="IARG_STACK_VALUE";
+    global.ArgTypes[26]="IARG_STACK_REFERENCE";
+    global.ArgTypes[27]="IARG_MEMORY_VALUE";
+    global.ArgTypes[28]="IARG_MEMORY_REFERENCE";
+    global.ArgTypes[29]="IARG_SYSCALL_NUMBER";
+    global.ArgTypes[30]="IARG_SYSARG_REFERENCE";
+    global.ArgTypes[31]="IARG_SYSARG_VALUE";
+    global.ArgTypes[32]="IARG_SYSRET_VALUE";
+    global.ArgTypes[33]="IARG_SYSRET_ERRNO";
+    global.ArgTypes[34]="IARG_FUNCARG_CALLSITE_REFERENCE";
+    global.ArgTypes[35]="IARG_FUNCARG_CALLSITE_VALUE";
+    global.ArgTypes[36]="IARG_FUNCARG_ENTRYPOINT_REFERENCE";
+    global.ArgTypes[37]="IARG_FUNCARG_ENTRYPOINT_VALUE";
+    global.ArgTypes[38]="IARG_FUNCRET_EXITPOINT_REFERENCE";
+    global.ArgTypes[39]="IARG_FUNCRET_EXITPOINT_VALUE";
+    global.ArgTypes[40]="IARG_RETURN_IP";
+    global.ArgTypes[41]="IARG_ORIG_FUNCPTR";
+    global.ArgTypes[42]="IARG_PROTOTYPE";
+    global.ArgTypes[43]="IARG_THREAD_ID";
+    global.ArgTypes[44]="IARG_CONTEXT";
+    global.ArgTypes[45]="IARG_CONST_CONTEXT";
+    global.ArgTypes[46]="IARG_PARTIAL_CONTEXT";
+    global.ArgTypes[47]="IARG_PRESERVE";
+    global.ArgTypes[48]="IARG_RETURN_REGS";
+    global.ArgTypes[49]="IARG_CALL_ORDER";
+    global.ArgTypes[50]="IARG_REG_NAT_VALUE";
+    global.ArgTypes[51]="IARG_REG_OUTPUT_FRAME_VALUE";
+    global.ArgTypes[52]="IARG_REG_OUTPUT_FRAME_REFERENCE";
+    global.ArgTypes[53]="IARG_IARGLIST";
+    global.ArgTypes[54]="IARG_FAST_ANALYSIS_CALL";
+    global.ArgTypes[55]="IARG_SYSCALL_ARG0";
+    global.ArgTypes[55]="IARG_SYSCALL_ARGBASE";
+    global.ArgTypes[56]="IARG_SYSCALL_ARG1";
+    global.ArgTypes[57]="IARG_SYSCALL_ARG2";
+    global.ArgTypes[58]="IARG_SYSCALL_ARG3";
+    global.ArgTypes[59]="IARG_SYSCALL_ARG4";
+    global.ArgTypes[60]="IARG_SYSCALL_ARG5";
+    global.ArgTypes[60]="IARG_SYSCALL_ARGLAST";
+    global.ArgTypes[61]="IARG_G_RESULT0";
+    global.ArgTypes[61]="IARG_G_RETBASE";
+    global.ArgTypes[61]="IARG_G_RESULTLAST";
+    global.ArgTypes[62]="IARG_G_ARG0_CALLEE";
+    global.ArgTypes[62]="IARG_G_ARGBASE_CALLEE";
+    global.ArgTypes[63]="IARG_G_ARG1_CALLEE";
+    global.ArgTypes[64]="IARG_G_ARG2_CALLEE";
+    global.ArgTypes[65]="IARG_G_ARG3_CALLEE";
+    global.ArgTypes[66]="IARG_G_ARG4_CALLEE";
+    global.ArgTypes[67]="IARG_G_ARG5_CALLEE";
+    global.ArgTypes[67]="IARG_G_ARGLAST_CALLEE";
+    global.ArgTypes[68]="IARG_G_ARG0_CALLER";
+    global.ArgTypes[68]="IARG_G_ARGBASE_CALLER";
+    global.ArgTypes[69]="IARG_G_ARG1_CALLER";
+    global.ArgTypes[70]="IARG_G_ARG2_CALLER";
+    global.ArgTypes[71]="IARG_G_ARG3_CALLER";
+    global.ArgTypes[72]="IARG_G_ARG4_CALLER";
+    global.ArgTypes[73]="IARG_G_ARG5_CALLER";
+    global.ArgTypes[73]="IARG_G_ARGLAST_CALLER";
+    global.ArgTypes[74]="IARG_MEMORYOP_EA";
+    global.ArgTypes[75]="IARG_MEMORYOP_MASKED_ON";
+    global.ArgTypes[76]="IARG_TSC";
+    global.ArgTypes[77]="IARG_FILE_NAME";
+    global.ArgTypes[78]="IARG_LINE_NO";
+}
+
 function SetupPIN() {
   %CheckIsBootstrapping();
   
@@ -1627,10 +2043,15 @@ function SetupPIN() {
   SetupRoutine();
   SetupInstruction();
   SetupTrace();
+  SetupBBL();
   SetupEvents();
   SetupContext();
   SetupRegister();
   SetupThread();
+  SetupAnalysisFunction();
+  SetupArgsArray();
+  SetupHandyFunctions();
+  SetupArgumentTypeConstants();
 }
 
 SetupPIN();

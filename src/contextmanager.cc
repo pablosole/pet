@@ -392,7 +392,7 @@ AnalysisFunction *ContextManager::GetFunction(unsigned int funcId)
 
 uint32_t AnalysisFunction::HashBody()
 {
-	uint32_t hash = 0;
+	hash = 0;
 	const char *s = body.c_str();
 
 	while (*s)

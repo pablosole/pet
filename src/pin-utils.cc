@@ -192,6 +192,19 @@ void forceGarbageCollection()
     }
 }
 
+uint32_t NumberToUint32(Local<Value> value_in, TryCatch* try_catch) {
+	HandleScope hscope;
+
+    if (value_in->IsUint32()) {
+        return value_in->Uint32Value();
+    }
+    
+    Local<Value> number = value_in->ToNumber();
+    if (try_catch->HasCaught()) return 0;
+    
+    return number->Uint32Value();
+}
+
 size_t convertToUint(Local<Value> value_in, TryCatch* try_catch) {
     if (value_in->IsUint32()) {
         return value_in->Uint32Value();
