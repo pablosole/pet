@@ -168,13 +168,7 @@ instrumentation_flags(0)
 	REGSET_Insert(preserved_regs, REG_EBP);
 	REGSET_Insert(preserved_regs, REG_X87);
 	
-	//we use XMM0 to create heap numbers
-	//REGSET_Insert(preserved_regs, REG_XMM0);
-
-	REGSET_Insert(preserved_regs, REG_XMM1);
-	REGSET_Insert(preserved_regs, REG_XMM2);
-	REGSET_Insert(preserved_regs, REG_XMM3);
-	REGSET_Insert(preserved_regs, REG_XMM4);
+	//XMM0-4 are used by V8 JIT
 	REGSET_Insert(preserved_regs, REG_XMM5);
 	REGSET_Insert(preserved_regs, REG_XMM6);
 	REGSET_Insert(preserved_regs, REG_XMM7);
