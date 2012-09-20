@@ -327,6 +327,9 @@ VOID InstructionProxy(INS ins, VOID *v) {
 }
 
 VOID ApplicationStartProxy(VOID *) {
+	if (!ctxmgr->IsRunning())
+		return;
+
 	Locker locker;
 	Context::Scope context_scope(ctxmgr->GetDefaultContext());
 	HandleScope hscope;
@@ -342,6 +345,9 @@ VOID ApplicationStartProxy(VOID *) {
 }
 
 VOID DetachProxy(VOID *) {
+	if (!ctxmgr->IsRunning())
+		return;
+
 	Locker locker;
 	Context::Scope context_scope(ctxmgr->GetDefaultContext());
 	HandleScope hscope;
@@ -359,6 +365,9 @@ VOID DetachProxy(VOID *) {
 VOID StartThreadProxy(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *v)
 {
 	if (!PIN_IsApplicationThread())
+		return;
+
+	if (!ctxmgr->IsRunning())
 		return;
 
 	Locker locker;
@@ -392,6 +401,9 @@ VOID FiniThreadProxy(THREADID tid, const CONTEXT *ctx, INT32 code, VOID *v)
 	if (!PIN_IsApplicationThread())
 		return;
 
+	if (!ctxmgr->IsRunning())
+		return;
+
 	Locker locker;
 	Context::Scope context_scope(ctxmgr->GetDefaultContext());
 	HandleScope hscope;
@@ -420,6 +432,9 @@ VOID FiniThreadProxy(THREADID tid, const CONTEXT *ctx, INT32 code, VOID *v)
 
 VOID ImageProxy(IMG img, VOID *v)
 {
+	if (!ctxmgr->IsRunning())
+		return;
+
 	Locker locker;
 	Context::Scope context_scope(ctxmgr->GetDefaultContext());
 	HandleScope hscope;
@@ -445,10 +460,12 @@ VOID ImageProxy(IMG img, VOID *v)
 }
 
 VOID InternalThreadProxy(VOID *arg) {
+	if (!ctxmgr->IsRunning())
+		return;
+
 	Locker locker;
 	HandleScope hscope;
 	Context::Scope context_scope(ctxmgr->GetDefaultContext());
-	SorrowContext sorrow(0, NULL);
 
 	Local<Object> global = ctxmgr->GetDefaultContext()->Global();
 	Local<Value> funval = global->Get(String::New("spawnedThreadDispatcher"));
@@ -695,22 +712,24 @@ namespace sorrow {
     V8_FUNCTN(CreateAnalysisFunction) {
         HandleScope scope;
 
-		if (args.Length() != 3)
-			return ThrowException(String::New("createAF needs 3 parameters"));
+		if (args.Length() != 4)
+			return ThrowException(String::New("createAF needs 4 parameters"));
 
-		if (!args[0]->IsString() || !args[1]->IsString() || !args[2]->IsObject())
+		if (!args[0]->IsString() || !args[1]->IsString() || !args[2]->IsString() || !args[3]->IsObject())
 			return ThrowException(String::New("wrong argument types"));
 
 		Local<String> body = args[0]->ToString();
 		Local<String> init = args[1]->ToString();
-		Local<Object> args_obj = args[2]->ToObject();
+		Local<String> dtor = args[2]->ToString();
+		Local<Object> args_obj = args[3]->ToObject();
 		IARGLIST arglist = (IARGLIST) args_obj->GetPointerFromInternalField(0);
 		uint32_t nargs = (uint32_t) args_obj->GetPointerFromInternalField(1);
 
 		v8::String::Utf8Value body_utf8(body);
 		v8::String::Utf8Value init_utf8(init);
+		v8::String::Utf8Value dtor_utf8(dtor);
 
-		AnalysisFunction *af = ctxmgr->AddFunction(ToCString(body_utf8), ToCString(init_utf8));
+		AnalysisFunction *af = ctxmgr->AddFunction(ToCString(body_utf8), ToCString(init_utf8), ToCString(dtor_utf8));
 		af->SetArguments(arglist, nargs);
 		
 		Local<Value> arg[1];

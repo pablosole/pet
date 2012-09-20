@@ -198,7 +198,7 @@ namespace sorrow {
 	  }
 
 	  TryCatch try_catch;
-	  uint32_t address = convertToUint(args[0], &try_catch);
+	  uint32_t address = NumberToUint32(args[0], &try_catch);
 	  uint32_t length = convertToUint(args[1], &try_catch);
 	  uint8_t* data;
 	  bool is_external = false;

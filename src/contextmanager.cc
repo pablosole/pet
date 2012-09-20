@@ -27,14 +27,7 @@ VOID ContextManager::Run(VOID *_ctx)
 		ctx->ProcessChanges();
 	}
 
-	//If we're here, it means our tool is going to die soon, kill all contexts as gracefully as possible.
-	ctx->KillAllContexts();
-	delete ctx;
-
 	DEBUG("ContextManager thread exit");
-
-	//This should go away at some point:
-	KillPinTool();
 }
 
 
@@ -114,7 +107,9 @@ void ContextManager::KillAllContexts()
 {
 	ContextsMap::iterator it;
 
-	DEBUG("about to die, kill everything...");
+	//Last chance to process contexts dieing
+	ProcessChanges();
+
 	Lock();
 
 	it = contexts.begin();
@@ -124,10 +119,8 @@ void ContextManager::KillAllContexts()
 		PinContext *context = it->second;
 		
 		if (context->GetState() == PinContext::INITIALIZED_CONTEXT) {
-			DEBUG("destroying context for tid:" << tid);
 			context->DestroyJSContext();
 		}
-		DEBUG("deleting context for tid:" << tid);
 		contexts.erase(it++);
 		delete context;
 	}
@@ -192,10 +185,7 @@ instrumentation_flags(0)
 		Locker lock;
 		HandleScope hscope;
 
-		Handle<ObjectTemplate> global_templ = ObjectTemplate::New();
-		global_templ->SetInternalFieldCount(1);
-
-		default_context = Context::New(NULL, global_templ);
+		default_context = Context::New();
 		if (default_context.IsEmpty())
 		{
 			SetState(ERROR_MANAGER);
@@ -203,13 +193,28 @@ instrumentation_flags(0)
 		}
 		default_context->SetSecurityToken(Undefined());
 
-		shareddata_context = Context::New(NULL, global_templ);
+		shareddata_context = Context::New();
 		if (shareddata_context.IsEmpty())
 		{
 			SetState(ERROR_MANAGER);
 			return;
 		}
 		shareddata_context->SetSecurityToken(Undefined());
+
+		{
+			Context::Scope cscope(default_context);
+			Local<ObjectTemplate> objt = ObjectTemplate::New();
+			objt->SetInternalFieldCount(1);
+			Local<Object> obj = objt->NewInstance();
+			default_context->Global()->SetHiddenValue(String::New("SorrowInstance"), obj);
+		}
+		{
+			Context::Scope cscope(shareddata_context);
+			Local<ObjectTemplate> objt = ObjectTemplate::New();
+			objt->SetInternalFieldCount(1);
+			Local<Object> obj = objt->NewInstance();
+			shareddata_context->Global()->SetHiddenValue(String::New("SorrowInstance"), obj);
+		}
 
 		Locker::StartPreemption(50);
 	}
@@ -241,6 +246,11 @@ ContextManager::~ContextManager()
 	PIN_SemaphoreFini(&ready);
 	PIN_DeleteThreadDataKey(per_thread_context_key);
 
+	{
+		Locker lock;
+		Locker::StopPreemption();
+	}
+
 	V8::TerminateExecution();
 	delete sorrrowctx;
 	delete sorrrowctx_shareddata;
@@ -252,7 +262,7 @@ ContextManager::~ContextManager()
 	default_context.Dispose();
 	shareddata_context.Dispose();
 	
-	default_isolate->Dispose();
+	V8::Dispose();
 }
 
 //this function returns a new context and adds it to the map of contexts or returns
@@ -337,9 +347,9 @@ inline PinContext *ContextManager::EnsurePinContext(THREADID tid, bool create)
 }
 
 
-AnalysisFunction *ContextManager::AddFunction(const string &body, const string& init)
+AnalysisFunction *ContextManager::AddFunction(const string &body, const string& init, const string& dtor)
 {
-	AnalysisFunction *af = new AnalysisFunction(body, init);
+	AnalysisFunction *af = new AnalysisFunction(body, init, dtor);
 
 	DEBUG("Adding AF with hash:" << af->GetHash());
 

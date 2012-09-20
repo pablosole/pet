@@ -69,7 +69,6 @@ PinContext * const INVALID_PIN_CONTEXT = reinterpret_cast<PinContext *>(0);
 PinContext * const NO_MANAGER_CONTEXT = reinterpret_cast<PinContext *>(-1);
 
 //global accessible data and functions
-extern ofstream OutFile;
 extern ofstream DebugFile;
 extern ContextManager *ctxmgr;
 
@@ -177,6 +176,7 @@ class ContextManager {
 
 	inline bool IsValid() { return (state == RUNNING_MANAGER || state == KILLING_MANAGER); }
 	inline bool IsRunning() { return state == RUNNING_MANAGER; }
+	inline bool IsDieing() { return state == KILLING_MANAGER; }
 	ContextManagerState inline GetState() { return state; }
 	void inline SetState(ContextManagerState s) { state = s; }
 
@@ -239,9 +239,11 @@ class ContextManager {
 	inline PinContext *LoadPinContext() { return LoadPinContext(PIN_ThreadId()); }
 
 	//AnalysisFunction API
-	AnalysisFunction *AddFunction(const string& body, const string& init=string());
+	AnalysisFunction *AddFunction(const string& body, const string& init=string(), const string& dtor=string());
 	bool RemoveFunction(unsigned int funcId);
-	AnalysisFunction *ContextManager::GetFunction(unsigned int funcId);
+	AnalysisFunction *GetFunction(unsigned int funcId);
+	inline FunctionsMap &GetFunctionsMap() { return functions; }
+	inline unsigned int GetLastFunctionId() { return last_function_id; }
 
 	//Global and SharedData context manager functions
 	inline Handle<Context> GetDefaultContext() { return default_context; }
@@ -283,13 +285,14 @@ class ContextManager {
 
 class CACHE_ALIGN AnalysisFunction {
 public:
-	AnalysisFunction(const string& _body, const string& _init) :
+	AnalysisFunction(const string& _body, const string& _init, const string& _dtor) :
 		num_args(0), 
 		enabled(true),
 		num_exceptions(0),
 		exception_threshold(10),
 		args_fixed(false),
 		init(_init),
+		dtor(_dtor),
 		arguments(0)
 	{
 		SetBody(_body);
@@ -318,6 +321,8 @@ public:
 			}
 		}
 	}
+	inline const string& GetDtor() { return dtor; }
+	inline void SetDtor(const string& _dtor) { dtor = _dtor; }
 	inline const string& GetInit() { return init; }
 	inline void SetInit(const string& _init) { init = _init; }
 	inline const string& GetLastException() { return last_exception; }
@@ -347,6 +352,7 @@ private:
 	unsigned int hash;
 	string body;
 	string init;
+	string dtor;
 	IARGLIST arguments;
 	uint32_t num_args;
 	bool args_fixed;

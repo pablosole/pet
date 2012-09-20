@@ -16,13 +16,17 @@ bool PinContext::CreateJSContext()
 		Locker lock(isolate);
 		HandleScope hscope;
 
-		Handle<ObjectTemplate> global_templ = ObjectTemplate::New();
-		global_templ->SetInternalFieldCount(1);
-		context = Context::New(NULL, global_templ);
+		context = Context::New();
 
 		if (!context.IsEmpty()) {
 			//this is the "receiver" argument for Invoke, it's the "this" of the function called
 			Context::Scope cscope(context);
+
+			Local<ObjectTemplate> objt = ObjectTemplate::New();
+			objt->SetInternalFieldCount(1);
+			Local<Object> obj = objt->NewInstance();
+			context->Global()->SetHiddenValue(String::New("SorrowInstance"), obj);
+
 			sorrowctx = new SorrowContext(0, NULL);
 
 			i::Object** ctx = reinterpret_cast<i::Object**>(*context);
@@ -48,9 +52,15 @@ bool PinContext::CreateJSContext()
 
 void PinContext::DestroyJSContext()
 {
-	DEBUG("destroy context for tid:" << tid);
+	DEBUG("Destroy context for tid:" << tid);
 
 	Lock();
+	if (GetState() == DEAD_CONTEXT) {
+		Unlock();
+		return;
+	}
+
+	SetState(DEAD_CONTEXT);
 
 	if (isolate != 0)
 	{
@@ -60,6 +70,27 @@ void PinContext::DestroyJSContext()
 
 			if (!context.IsEmpty())
 			{
+				{
+					HandleScope hscope;
+					Context::Scope cscope(context);
+					AnalysisFunction *af;
+					TryCatch trycatch;
+
+					//Call the AF destructors for all Ensured functions
+					for (unsigned int idx=0; idx < ctxmgr->GetLastFunctionId(); idx++) {
+						af = ctxmgr->GetFunction(idx);
+
+						//check if the function was actually used (cached)
+						if (af && funcache.find(af->GetHash()) != funcache.end()) {
+							const string& dtor = af->GetDtor();
+							if (!dtor.empty()) {
+								DEBUG("Calling AF Destructor for AF Hash:" << af->GetHash() << " on TID:" << GetTid());
+								sorrowctx->LoadScript(dtor.c_str(), dtor.size());
+							}
+						}
+					}
+				}
+
 				V8::TerminateExecution(isolate);
 
 				if (GetTid() <= kFastCacheMaxTid) {
@@ -83,7 +114,6 @@ void PinContext::DestroyJSContext()
 		isolate->Dispose();
 	}
 
-	SetState(DEAD_CONTEXT);
 	Unlock();
 	Notify();
 }
@@ -95,7 +125,7 @@ VOID PinContext::ThreadInfoDestructor(VOID *v)
 	if (!PinContext::IsValid(context))
 		return;
 
-	DEBUG("set context state to kill");
+	DEBUG("Queued context kill for TID " << context->GetTid());
 	context->Lock();
 	context->SetState(PinContext::KILLING_CONTEXT);
 	context->Unlock();

@@ -22,10 +22,13 @@ WINDOWS::HANDLE WINAPI MyCreateThread(
 	return (ret == INVALID_THREADID) ? 0 : reinterpret_cast<WINDOWS::HANDLE>(ret);
 }
 
+VOID WINAPI MyExitThread(WINDOWS::DWORD dwExitCode) {
+	PIN_ExitThread(dwExitCode);
+}
+
 void KillPinTool()
 {
 	//this is the last thing our pintool will be able to do.
-	OutFile.close();
 	DebugFile.close();
 	PIN_ExitProcess(0);
 }

@@ -25,7 +25,7 @@
         return THROW(ERR(V8_STR(#message))) \
     }
 
-#define IS_BINARY(obj) (reinterpret_cast<SorrowContext *>(Context::GetCurrent()->Global()->GetPointerFromInternalField(0))->GetBinaryTypes()->GetByteStringTempl()->HasInstance(obj) || reinterpret_cast<SorrowContext *>(Context::GetCurrent()->Global()->GetPointerFromInternalField(0))->GetBinaryTypes()->GetByteArrayTempl()->HasInstance(obj))
+#define IS_BINARY(obj) (reinterpret_cast<SorrowContext *>(Context::GetCurrent()->Global()->GetHiddenValue(String::New("SorrowInstance"))->ToObject()->GetPointerFromInternalField(0))->GetBinaryTypes()->GetByteStringTempl()->HasInstance(obj) || reinterpret_cast<SorrowContext *>(Context::GetCurrent()->Global()->GetHiddenValue(String::New("SorrowInstance"))->ToObject()->GetPointerFromInternalField(0))->GetBinaryTypes()->GetByteArrayTempl()->HasInstance(obj))
 #define BYTES_FROM_BIN(obj) reinterpret_cast<Bytes*>(obj->GetPointerFromInternalField(0))
 
 namespace sorrow {
@@ -116,6 +116,8 @@ namespace sorrow {
      * sorrow.cpp
      */
     
+	Local<Value> ExecuteString(Handle<String> source, Handle<Value> filename);
+
 	class SorrowContext {
 	public:
 		SorrowContext(int argc, const char *argv[]);

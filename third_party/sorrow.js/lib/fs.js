@@ -30,11 +30,11 @@ function workingDirectoryPath() {
 
 function join() {
      var args = Array.prototype.slice.call(arguments);
-     return args.join('/');
+     return args.join('\\');
 }
 
 function split(path) {
-    var parts = path.split('/');
+    var parts = path.split('\\');
     return parts;
 }
 

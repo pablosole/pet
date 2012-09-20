@@ -104,7 +104,7 @@ namespace sorrow {
         uint32_t n;
         uint8_t *buffer;
         if (feof(file)) {
-            Local<Value> bs = reinterpret_cast<SorrowContext *>(Context::GetCurrent()->Global()->GetPointerFromInternalField(0))->GetBinaryTypes()->GetByteString()->NewInstance();
+            Local<Value> bs = reinterpret_cast<SorrowContext *>(Context::GetCurrent()->Global()->GetHiddenValue(String::New("SorrowInstance"))->ToObject()->GetPointerFromInternalField(0))->GetBinaryTypes()->GetByteString()->NewInstance();
             return scope.Close(bs);
         }
         if (args.Length() == 0) {
@@ -133,7 +133,7 @@ namespace sorrow {
         }
         Bytes *bytes = new Bytes(readBytes, buffer);
 		Local<Value> bsArgs[1] = { External::New((void*)bytes) };
-		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetPointerFromInternalField(0);
+		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetHiddenValue(String::New("SorrowInstance"))->ToObject()->GetPointerFromInternalField(0);
 		ASSERT_PIN(ctx, "SorrowContext is NULL");
 		Local<Value> bs = ctx->GetBinaryTypes()->GetByteString()->NewInstance(1, bsArgs);
         delete[] buffer;

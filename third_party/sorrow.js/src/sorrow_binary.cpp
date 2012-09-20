@@ -67,7 +67,7 @@ namespace sorrow {
 		*/
 
 		Local<Value> bsArgs[1] = { External::New((void*)bytesToUse) };
-		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetPointerFromInternalField(0);
+		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetHiddenValue(String::New("SorrowInstance"))->ToObject()->GetPointerFromInternalField(0);
 		Local<Value> bs = ctx->GetBinaryTypes()->GetByteString()->NewInstance(1, bsArgs);
         return scope.Close(bs);
     }
@@ -85,7 +85,7 @@ namespace sorrow {
 		*/
 
 		Local<Value> baArgs[1] = { External::New((void*)bytesToUse) };
-		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetPointerFromInternalField(0);
+		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetHiddenValue(String::New("SorrowInstance"))->ToObject()->GetPointerFromInternalField(0);
 		Local<Value> ba = ctx->GetBinaryTypes()->GetByteArray()->NewInstance(1, baArgs);
         return scope.Close(ba);
     }
@@ -140,7 +140,7 @@ namespace sorrow {
         uint8_t byte[1] = { BYTES_FROM_BIN(info.This())->getByteAt(index) };
         Bytes *bytes = new Bytes(1, byte);
 		Local<Value> bsArgs[1] = { External::New((void*)bytes) };
-		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetPointerFromInternalField(0);
+		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetHiddenValue(String::New("SorrowInstance"))->ToObject()->GetPointerFromInternalField(0);
 		Local<Value> bs = ctx->GetBinaryTypes()->GetByteString()->NewInstance(1, bsArgs);
         
         return scope.Close(bs);
@@ -151,7 +151,7 @@ namespace sorrow {
         HandleScope scope;
         Bytes *bytes = BYTES_FROM_BIN(args.This())->concat(args);
 		Local<Value> bsArgs[1] = { External::New((void*)bytes) };
-		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetPointerFromInternalField(0);
+		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetHiddenValue(String::New("SorrowInstance"))->ToObject()->GetPointerFromInternalField(0);
 		Local<Value> bs = ctx->GetBinaryTypes()->GetByteString()->NewInstance(1, bsArgs);
 
 		return scope.Close(bs);
@@ -227,7 +227,7 @@ namespace sorrow {
         HandleScope scope;
         Bytes *bytes = BYTES_FROM_BIN(args.This())->concat(args);
 		Local<Value> baArgs[1] = { External::New((void*)bytes) };
-		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetPointerFromInternalField(0);
+		SorrowContext *ctx = (SorrowContext *)Context::GetCurrent()->Global()->GetHiddenValue(String::New("SorrowInstance"))->ToObject()->GetPointerFromInternalField(0);
 		Local<Value> ba = ctx->GetBinaryTypes()->GetByteArray()->NewInstance(1, baArgs);
 		return scope.Close(ba);
     }

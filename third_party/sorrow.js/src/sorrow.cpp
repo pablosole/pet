@@ -185,7 +185,7 @@ namespace sorrow {
 		HandleScope handle_scope;
 
 		//pointer to ourself inside the context
-		Context::GetCurrent()->Global()->SetPointerInInternalField(0, this);
+		Context::GetCurrent()->Global()->GetHiddenValue(String::New("SorrowInstance"))->ToObject()->SetPointerInInternalField(0, this);
 
 		//global array methods
 		InitV8Arrays(Context::GetCurrent()->Global());

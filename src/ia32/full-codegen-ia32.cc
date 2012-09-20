@@ -4463,7 +4463,9 @@ void FullCodeGenerator::PushFunctionArgumentForContextAllocation() {
 // ----------------------------------------------------------------------------
 // PIN support.
 #ifdef TARGET_WINDOWS
+#define INLINED_IMPL
 #include "inlined_impl-pin.cc"
+#undef INLINED_IMPL
 #endif
 
 

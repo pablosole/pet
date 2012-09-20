@@ -1,3 +1,4 @@
+#ifdef INLINED_IMPL
 #define FUN(NAME) void FullCodeGenerator::Emit##NAME(CallRuntime* expr)
 
 //ptr, size (0 means strlen, size is in two-bytes chars)
@@ -1639,3 +1640,4 @@ FUN(BBL_Size)
 }
 
 #undef FUN
+#endif

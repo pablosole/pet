@@ -129,7 +129,7 @@
 				RuntimeLibrary="0"
 				BufferSecurityCheck="true"
 				EnableFunctionLevelLinking="true"
-				EnableEnhancedInstructionSet="2"
+				EnableEnhancedInstructionSet="0"
 				RuntimeTypeInfo="false"
 				ProgramDataBaseFileName="$(IntDir)\$(ProjectName)\vc80.pdb"
 				WarningLevel="3"
@@ -652,6 +652,10 @@
 					</File>
 					<File
 						RelativePath="..\..\src\incremental-marking.h"
+						>
+					</File>
+					<File
+						RelativePath="..\..\src\inlined_impl-pin.cc"
 						>
 					</File>
 					<File

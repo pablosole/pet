@@ -85,7 +85,10 @@ Module._load = function(script, parent, isRoot) {
         return Lib.require(script);
     }
     
-    var filename = Module._resolvePath(script, parent);
+    if (isRoot)
+	var filename = script;
+    else
+        var filename = Module._resolvePath(script, parent);
     var canonical = fs.canonical(filename);
     var mod = Module.getCached(canonical);
     if (mod) {

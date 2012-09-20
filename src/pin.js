@@ -1068,8 +1068,8 @@ global.startThreadDispatcher = function(tid, external, flags) {
         for (var idx in $EventList[name]) {
             var evt = $EventList[name][idx];
             if (evt._enabled) {
-                evt.callback(tid, ctx, flags);
                 $current.event = evt;
+                evt.callback(tid, ctx, flags);
             }
         }
         $current.event = {};
@@ -1086,8 +1086,8 @@ global.finiThreadDispatcher = function(tid, external, code) {
         for (var idx in $EventList[name]) {
             var evt = $EventList[name][idx];
             if (evt._enabled) {
-                evt.callback(tid, ctx, code);
                 $current.event = evt;
+                evt.callback(tid, ctx, code);
             }
         }
         $current.event = {};
@@ -1753,30 +1753,37 @@ function SetupThread() {
 /************************************************************************/
 /* AnalysisFunction object                                              */
 /************************************************************************/
-global.AnalysisFunction = function(fun,init,args) {
+global.AnalysisFunction = function(fun,init,dtor,args) {
     if (!%_IsConstructCall()) {
-        return new $AnalysisFunction(fun,init,args);
+        return new $AnalysisFunction(fun,init,dtor,args);
     }
     
     if (IS_FUNCTION(fun))
         fun = fun.toString();
-    
     if (!IS_STRING(fun))
         throw "function callback is not a function source string";
     
     if (IS_NULL_OR_UNDEFINED(args))
         args = new $ArgsArray();
+
     if (IS_NULL_OR_UNDEFINED(init))
         init = "function() {}";
     else if (IS_FUNCTION(init))
         init = init.toString();
-    
     if (!IS_STRING(init))
         throw "initialization callback is not a function source string";
         
-    this.external = global.createAF(fun, init, args.external);
+    if (IS_NULL_OR_UNDEFINED(dtor))
+        dtor = "function() {}";
+    else if (IS_FUNCTION(dtor))
+        dtor = dtor.toString();
+    if (!IS_STRING(dtor))
+        throw "destructor callback is not a function source string";
+        
+    this.external = global.createAF(fun, init, dtor, args.external);
     this.callback = fun;
     this.init = init;
+    this.dtor = dtor;
     this.args = args;
     
     this.type = "AnalysisFunction";

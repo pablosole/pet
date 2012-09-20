@@ -137,7 +137,7 @@
 				RuntimeLibrary="0"
 				BufferSecurityCheck="true"
 				EnableFunctionLevelLinking="true"
-				EnableEnhancedInstructionSet="2"
+				EnableEnhancedInstructionSet="0"
 				ProgramDataBaseFileName="$(IntDir)\$(ProjectName)\vc80.pdb"
 				WarningLevel="3"
 				WarnAsError="true"
@@ -158,9 +158,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalOptions="/EXPORT:main /EXPORT:MyCreateThread"
+				AdditionalOptions="/EXPORT:main /EXPORT:MyCreateThread /EXPORT:MyExitThread"
 				AdditionalDependencies="pin.lib libxed.lib libcpmt.lib libcmt.lib pinvm.lib kernel32.lib ntdll-32.lib winmm.lib ws2_32.lib shlwapi.lib $(NOINHERIT)"
-				OutputFile="$(OutDir)\pet.dll"
+				OutputFile="$(OutDir)\pinocchio.dll"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="..\..\third_party\pin-2.12-53271-msvc9-ia32_intel64-windows\ia32\lib;..\..\third_party\pin-2.12-53271-msvc9-ia32_intel64-windows\ia32\lib-ext;..\..\third_party\pin-2.12-53271-msvc9-ia32_intel64-windows\extras\xed2-ia32\lib"
 				GenerateManifest="false"
@@ -221,10 +221,6 @@
 					>
 					<File
 						RelativePath="..\..\src\pin-contexts.cc"
-						>
-					</File>
-					<File
-						RelativePath="..\..\src\pin-notifications.cc"
 						>
 					</File>
 					<File

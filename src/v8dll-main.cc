@@ -1,7 +1,6 @@
 #include "pintool.h"
 #include "v8dll-main.h"
 
-KNOB<string> KnobOutputFile(KNOB_MODE_WRITEONCE, "pintool", "o", "pet-output.log", "specify output file name");
 KNOB<string> KnobDebugFile(KNOB_MODE_WRITEONCE, "pintool", "d", "pet-debug.log", "specify debug file name");
 KNOB<string> KnobV8Options(KNOB_MODE_WRITEONCE, "pintool", "e", "--always_opt --break_on_abort --harmony_collections --harmony_proxies", "v8 engine options");
 KNOB<string> KnobJSFile(KNOB_MODE_WRITEONCE, "pintool", "f", "main.js", "JS file to execute on init");
@@ -21,6 +20,9 @@ VOID InitializePerThreadContexts(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *
 	if (!PIN_IsApplicationThread())
 		return;
 
+	if (ctxmgr->IsDieing())
+		return;
+
 	PinContext *pincontext = ctxmgr->CreateContext(tid, false);
 
 	//set the per-thread context class to the per-thread scratch register allocated for it.
@@ -31,6 +33,9 @@ VOID InitializePerThreadContexts(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *
 
 VOID AddThreads(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *v)
 {
+	if (!ctxmgr->IsRunning())
+		return;
+
 	Locker locker;
 	Context::Scope context_scope(ctxmgr->GetDefaultContext());
 	HandleScope hscope;
@@ -61,6 +66,9 @@ VOID AddThreads(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *v)
 
 VOID RemoveThreads(THREADID tid, const CONTEXT *ctx, INT32 code, VOID *v)
 {
+	if (!ctxmgr->IsRunning())
+		return;
+
 	Locker locker;
 	Context::Scope context_scope(ctxmgr->GetDefaultContext());
 	HandleScope hscope;
@@ -82,6 +90,7 @@ VOID RemoveThreads(THREADID tid, const CONTEXT *ctx, INT32 code, VOID *v)
 
 VOID ContextFini(INT32 code, VOID *v)
 {
+	DEBUG("Application is about to finish");
 	{
 		Locker locker;
 		Context::Scope context_scope(ctxmgr->GetDefaultContext());
@@ -98,6 +107,10 @@ VOID ContextFini(INT32 code, VOID *v)
 	}
 
 	ctxmgr->Abort();
+
+	//If we're here, it means our tool is going to die soon, kill all contexts as gracefully as possible.
+	ctxmgr->KillAllContexts();
+	delete ctxmgr;
 }
 
 int main(int argc, char * argv[])
@@ -107,8 +120,6 @@ int main(int argc, char * argv[])
 		return Usage();
 	}
 
-	OutFile.open(KnobOutputFile.Value().c_str());
-	OutFile.setf(ios::showbase);
 	DebugFile.open(KnobDebugFile.Value().c_str());
 	DebugFile.setf(ios::showbase);
 
@@ -142,6 +153,7 @@ int main(int argc, char * argv[])
 	int argsc = 0;
 
 	if (KnobJSFile.NumberOfValues() > 0) {
+		DEBUG("Running script " << KnobJSFile.Value().c_str());
 		args[1] = KnobJSFile.Value().c_str();
 		argsc = 2;
 	}
