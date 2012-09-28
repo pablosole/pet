@@ -89,18 +89,45 @@ void ReportException (TryCatch* try_catch);
 const string ReportExceptionToString(TryCatch* try_catch);
 Handle<Value> evalOnContext(Isolate *isolate_src, Handle<Context> context_src, Isolate *isolate_dst, Handle<Context> context_dst, const string& source);
 Handle<Value> evalOnContext(PinContext *pincontext_src, PinContext *pincontext_dst, const string& source);
-Handle<Value> evalOnDefaultContext(PinContext *context_src, const string& source);
 void forceGarbageCollection();
 size_t convertToUint(Local<Value> value_in, TryCatch* try_catch);
 uint32_t NumberToUint32(Local<Value> value_in, TryCatch* try_catch);
 
+//Context switcher for fast instrumentation
+struct PinContextSwitch {
+	enum CtxSwitchActions { PREPARE_AF, EXECUTE_AF, FINISH_CTX };
+	PinContextSwitch(uintptr_t fptr, uint32_t num) {
+		memset(stack, 0, sizeof(stack));
+		memset(passbuffer, 0, sizeof(passbuffer));
+
+		//ESP points to the end of our stack
+		neweip = fptr;
+		num_args = num+1;
+		args = &stack[0xFFFF-num_args];
+		args[0] = (uintptr_t)this;
+		newstate[4] = (uintptr_t)&stack[0xFFFF-num_args-1];
+	}
+
+	//EBX,ESI,EDI,EBP,ESP
+	uintptr_t savedstate[5];
+	uintptr_t neweip;
+	uintptr_t newstate[5];
+	uintptr_t passbuffer[0x30];
+	uintptr_t stack[0x10000];
+	uintptr_t *args;
+	uint32_t num_args;
+};
+void __stdcall ReturnContext(PinContextSwitch *buffer);
+void __stdcall EnterContext(PinContextSwitch *buffer);
+VOID ConstructInsertCallProxy(PinContextSwitch *buffer, PinContext *context);
+
 //we associate each PinContext with an application thread.
-typedef std::map<uint32_t, Persistent<Function>> FunctionsCacheMap;
 class CACHE_ALIGN PinContext {
 public:
 	enum ContextState { NEW_CONTEXT, INITIALIZED_CONTEXT, KILLING_CONTEXT, DEAD_CONTEXT, ERROR_CONTEXT };
 
-	PinContext(THREADID _tid) {
+	PinContext(THREADID _tid)
+	{
 		tid = _tid;
 		PIN_MutexInit(&lock);
 		PIN_SemaphoreInit(&changed);
@@ -108,6 +135,8 @@ public:
 		state = NEW_CONTEXT;
 		context.Clear();
 		isolate = 0;
+		sorrowctx = 0;
+		afctorscalled = false;
 	}
 	~PinContext() {
 		PIN_MutexFini(&lock);
@@ -138,31 +167,27 @@ public:
 
 	static bool inline IsValid(PinContext *context) { return !(context == 0 || context == INVALID_PIN_CONTEXT || context == NO_MANAGER_CONTEXT); }
 
+	inline PinContextSwitch *GetContextSwitchBuffer() { return ctxswitch; }
 	inline SorrowContext *GetSorrowContext() { return sorrowctx; }
 	inline Isolate *GetIsolate() { return isolate; }
 	inline Persistent<Context> &GetContext() { return context; }
-	inline Persistent<Object> &GetGlobal() { return global; }
-	Persistent<Function> PinContext::EnsureFunction(AnalysisFunction *af);
-	Persistent<Function> PinContext::EnsureFunctionSlow(AnalysisFunction *af);
-	inline unsigned int GetFastCacheIndex(unsigned int funcId) {
-		return GetFastCacheIndex(funcId, GetTid());
-	}
-	static inline unsigned int GetFastCacheIndex(unsigned int funcId, unsigned int tid) {
-		if (funcId > kFastCacheMaxFuncId || tid > kFastCacheMaxTid)
-			return kInvalidFastCacheIndex;
-		return funcId | (tid << kFastCacheTidShift);
-	}
+	inline void SetSorrowContext(SorrowContext *ptr) { sorrowctx = ptr; }
+	inline void SetIsolate(Isolate *iso) { isolate = iso; }
+	inline void SetContext(Persistent<Context> &ctx) { context = ctx; }
+	inline bool IsAFCtorCalled() { return afctorscalled; }
+	inline void SetAFCtorCalled(bool _new=true) { afctorscalled = _new; }
+	void DestroyInsertCallProxy();
 
 private:
 	Isolate *isolate;
 	Persistent<Context> context;
-	Persistent<Object> global;
 	SorrowContext *sorrowctx;
 	THREADID tid;
 	enum ContextState state;
 	PIN_MUTEX lock;
 	PIN_SEMAPHORE changed;
-	FunctionsCacheMap funcache;
+	bool afctorscalled;
+	PinContextSwitch *ctxswitch;
 };
 
 
@@ -223,7 +248,7 @@ class ContextManager {
 	void ProcessCallbacks();
 	void ProcessChanges();
 	void KillAllContexts();
-	PinContext *CreateContext(THREADID tid, BOOL waitforit = true);
+	PinContext *CreateContext(THREADID tid);
 	static VOID ProcessCallbacksHelper(VOID *v);
 
 	//API
@@ -245,9 +270,8 @@ class ContextManager {
 	inline FunctionsMap &GetFunctionsMap() { return functions; }
 	inline unsigned int GetLastFunctionId() { return last_function_id; }
 
-	//Global and SharedData context manager functions
+	//Global context manager functions
 	inline Handle<Context> GetDefaultContext() { return default_context; }
-	inline Handle<Context> GetSharedDataContext() { return shareddata_context; }
 	inline Isolate *GetDefaultIsolate() { return default_isolate; }
 	inline SorrowContext *GetSorrowContext() { return sorrrowctx; }
 	void ContextManager::InitializeSorrowContext(int argc, const char *argv[]);
@@ -255,9 +279,7 @@ class ContextManager {
  private:
 	ContextManagerState state;
 	Persistent<Context> default_context;
-	Persistent<Context> shareddata_context;
 	SorrowContext *sorrrowctx;
-	SorrowContext *sorrrowctx_shareddata;
 	Isolate *default_isolate;
 	ContextsMap contexts;
 	list<EnsureCallback *> callbacks;
@@ -310,16 +332,6 @@ public:
 	inline void SetBody(const string& _body) {
 		body = _body;
 		HashBody();
-
-		if (GetFuncId() <= kFastCacheMaxFuncId) {
-			for (int x=0; x <= kFastCacheMaxTid; x++) {
-				Persistent<Function>& tmp = AnalysisFunctionFastCache[PinContext::GetFastCacheIndex(GetFuncId(), x)];
-				if (!tmp.IsEmpty()) {
-					tmp.Dispose();
-					tmp.Clear();
-				}
-			}
-		}
 	}
 	inline const string& GetDtor() { return dtor; }
 	inline void SetDtor(const string& _dtor) { dtor = _dtor; }

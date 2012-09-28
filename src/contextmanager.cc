@@ -77,16 +77,6 @@ void ContextManager::ProcessChanges()
 		
 		switch (context->GetState())
 		{
-			case PinContext::NEW_CONTEXT:
-				context->CreateJSContext();
-				++it;
-				break;
-
-			case PinContext::KILLING_CONTEXT:
-				context->DestroyJSContext();
-				++it;
-				break;
-
 			case PinContext::DEAD_CONTEXT:
 			case PinContext::ERROR_CONTEXT:
 				//this is a thread that was killed or became erroneous in a previous round, erase it.
@@ -166,15 +156,14 @@ instrumentation_flags(0)
 	REGSET_Insert(preserved_regs, REG_ESI);
 	REGSET_Insert(preserved_regs, REG_EDI);
 	REGSET_Insert(preserved_regs, REG_EBP);
-	REGSET_Insert(preserved_regs, REG_X87);
-	
+
 	//XMM0-4 are used by V8 JIT
-	REGSET_Insert(preserved_regs, REG_XMM5);
+	/*REGSET_Insert(preserved_regs, REG_XMM5);
 	REGSET_Insert(preserved_regs, REG_XMM6);
 	REGSET_Insert(preserved_regs, REG_XMM7);
+	*/
 
 	//A default context for the instrumentation functions over the default isolate.
-	//And a diff context used only for eval() over this default isolate from other isolates.
 	{
 		Locker lock;
 		HandleScope hscope;
@@ -185,15 +174,6 @@ instrumentation_flags(0)
 			SetState(ERROR_MANAGER);
 			return;
 		}
-		default_context->SetSecurityToken(Undefined());
-
-		shareddata_context = Context::New();
-		if (shareddata_context.IsEmpty())
-		{
-			SetState(ERROR_MANAGER);
-			return;
-		}
-		shareddata_context->SetSecurityToken(Undefined());
 
 		{
 			Context::Scope cscope(default_context);
@@ -202,15 +182,6 @@ instrumentation_flags(0)
 			Local<Object> obj = objt->NewInstance();
 			default_context->Global()->SetHiddenValue(String::New("SorrowInstance"), obj);
 		}
-		{
-			Context::Scope cscope(shareddata_context);
-			Local<ObjectTemplate> objt = ObjectTemplate::New();
-			objt->SetInternalFieldCount(1);
-			Local<Object> obj = objt->NewInstance();
-			shareddata_context->Global()->SetHiddenValue(String::New("SorrowInstance"), obj);
-		}
-
-		Locker::StartPreemption(50);
 	}
 
 	default_isolate = Isolate::GetCurrent();
@@ -240,28 +211,21 @@ ContextManager::~ContextManager()
 	PIN_SemaphoreFini(&ready);
 	PIN_DeleteThreadDataKey(per_thread_context_key);
 
-	{
-		Locker lock;
-		Locker::StopPreemption();
-	}
-
 	V8::TerminateExecution();
 	delete sorrrowctx;
-	delete sorrrowctx_shareddata;
 	routine_function.Dispose();
 	trace_function.Dispose();
 	ins_function.Dispose();
 	main_ctx.Dispose();
 	main_ctx_global.Dispose();
 	default_context.Dispose();
-	shareddata_context.Dispose();
 	
 	V8::Dispose();
 }
 
 //this function returns a new context and adds it to the map of contexts or returns
 //INVALID_PIN_CONTEXT if it cannot allocate a new context.
-PinContext *ContextManager::CreateContext(THREADID tid, BOOL waitforit)
+PinContext *ContextManager::CreateContext(THREADID tid)
 {
 	PinContext *context;
 	pair<ContextsMap::iterator, bool> ret;
@@ -280,18 +244,14 @@ PinContext *ContextManager::CreateContext(THREADID tid, BOOL waitforit)
 		Lock();
 		context = contexts[tid];
 		Unlock();
-	} else {
-		Notify();
-		if (waitforit) {
-			//wait until the new context is created
-			context->Wait();
-		}
 	}
 
 	PIN_SetThreadData(per_thread_context_key, context, tid);
 
-	if (context->GetState() == PinContext::INITIALIZED_CONTEXT || \
-		(!waitforit && context->GetState() == PinContext::NEW_CONTEXT))
+	if (context->GetState() == PinContext::NEW_CONTEXT)
+		context->CreateJSContext();
+
+	if (context->GetState() == PinContext::INITIALIZED_CONTEXT)
 		return context;
 	else
 		return INVALID_PIN_CONTEXT;
@@ -418,74 +378,66 @@ bool ContextManager::GetPerformanceCounterDiff(WINDOWS::LARGE_INTEGER *out)
 
 void ContextManager::InitializeSorrowContext(int argc, const char *argv[])
 {
-	{
-		Locker locker;
-		Context::Scope context_scope(GetSharedDataContext());
-		sorrrowctx_shareddata = new SorrowContext(0, NULL);
+	Locker locker;
+	Context::Scope context_scope(GetDefaultContext());
+	sorrrowctx = new SorrowContext(argc, argv);
+
+	HandleScope hscope;
+	Local<Value> funval = GetDefaultContext()->Global()->Get(String::New("setupEventBooleans"));
+	if (!funval->IsFunction()) {
+		DEBUG("setupEventBooleans not found");
+		KillPinTool();
 	}
 
-	{
-		Locker locker;
-		Context::Scope context_scope(GetDefaultContext());
-		sorrrowctx = new SorrowContext(argc, argv);
+	Local<Function> fun = Local<Function>::Cast(funval);
+	Local<Value> argv_f[3];
 
-		HandleScope hscope;
-		Local<Value> funval = GetDefaultContext()->Global()->Get(String::New("setupEventBooleans"));
-		if (!funval->IsFunction()) {
-			DEBUG("setupEventBooleans not found");
-			KillPinTool();
-		}
+	Local<Value> args[1];
+	args[0] = Integer::NewFromUnsigned((uint32_t)&routine_instrumentation_enabled);
+	argv_f[0] = sorrrowctx->GetPointerTypes()->GetExternalPointerFunct()->NewInstance(1, args);
 
-		Local<Function> fun = Local<Function>::Cast(funval);
-		Local<Value> argv[3];
+	args[0] = Integer::NewFromUnsigned((uint32_t)&trace_instrumentation_enabled);
+	argv_f[1] = sorrrowctx->GetPointerTypes()->GetExternalPointerFunct()->NewInstance(1, args);
 
-		Local<Value> args[1];
-		args[0] = Integer::NewFromUnsigned((uint32_t)&routine_instrumentation_enabled);
-		argv[0] = sorrrowctx->GetPointerTypes()->GetExternalPointerFunct()->NewInstance(1, args);
+	args[0] = Integer::NewFromUnsigned((uint32_t)&ins_instrumentation_enabled);
+	argv_f[2] = sorrrowctx->GetPointerTypes()->GetExternalPointerFunct()->NewInstance(1, args);
 
-		args[0] = Integer::NewFromUnsigned((uint32_t)&trace_instrumentation_enabled);
-		argv[1] = sorrrowctx->GetPointerTypes()->GetExternalPointerFunct()->NewInstance(1, args);
+	fun->Call(GetDefaultContext()->Global(), 4, argv_f);
 
-		args[0] = Integer::NewFromUnsigned((uint32_t)&ins_instrumentation_enabled);
-		argv[2] = sorrrowctx->GetPointerTypes()->GetExternalPointerFunct()->NewInstance(1, args);
-
-		fun->Call(GetDefaultContext()->Global(), 4, argv);
-
-		funval = GetDefaultContext()->Global()->Get(String::New("fastDispatcher_0"));
-		if (!funval->IsFunction()) {
-			DEBUG("fastDispatcher_0 not found");
-			KillPinTool();
-		}
-		routine_function = Persistent<Function>::New(Handle<Function>::Cast(funval));
-
-		funval = GetDefaultContext()->Global()->Get(String::New("fastDispatcher_1"));
-		if (!funval->IsFunction()) {
-			DEBUG("fastDispatcher_1 not found");
-			KillPinTool();
-		}
-		trace_function = Persistent<Function>::New(Handle<Function>::Cast(funval));
-
-		funval = GetDefaultContext()->Global()->Get(String::New("fastDispatcher_2"));
-		if (!funval->IsFunction()) {
-			DEBUG("fastDispatcher_2 not found");
-			KillPinTool();
-		}
-		ins_function = Persistent<Function>::New(Handle<Function>::Cast(funval));
-
-		main_ctx = Persistent<Context>::New(GetDefaultContext());
-		main_ctx_isolate = GetDefaultIsolate();
-
-		//this is the "receiver" argument for Invoke, it's the "this" of the function called
-		//used for the "FastCall" hack
-		i::Object** ctx = reinterpret_cast<i::Object**>(*main_ctx);
-		i::Handle<i::Context> internal_context = i::Handle<i::Context>::cast(i::Handle<i::Object>(ctx));
-		i::GlobalObject *internal_global = internal_context->global();
-		i::Handle<i::JSObject> receiver(internal_global->global_receiver());
-		Local<Object> receiver_local(Utils::ToLocal(receiver));
-		main_ctx_global = Persistent<Object>::New(receiver_local);
-
-
-		if (argc)
-			sorrrowctx->LoadMain();
+	funval = GetDefaultContext()->Global()->Get(String::New("fastDispatcher_0"));
+	if (!funval->IsFunction()) {
+		DEBUG("fastDispatcher_0 not found");
+		KillPinTool();
 	}
+	routine_function = Persistent<Function>::New(Handle<Function>::Cast(funval));
+
+	funval = GetDefaultContext()->Global()->Get(String::New("fastDispatcher_1"));
+	if (!funval->IsFunction()) {
+		DEBUG("fastDispatcher_1 not found");
+		KillPinTool();
+	}
+	trace_function = Persistent<Function>::New(Handle<Function>::Cast(funval));
+
+	funval = GetDefaultContext()->Global()->Get(String::New("fastDispatcher_2"));
+	if (!funval->IsFunction()) {
+		DEBUG("fastDispatcher_2 not found");
+		KillPinTool();
+	}
+	ins_function = Persistent<Function>::New(Handle<Function>::Cast(funval));
+
+	main_ctx = Persistent<Context>::New(GetDefaultContext());
+	main_ctx_isolate = GetDefaultIsolate();
+
+	//this is the "receiver" argument for Invoke, it's the "this" of the function called
+	//used for the "FastCall" hack
+	i::Object** ctx = reinterpret_cast<i::Object**>(*main_ctx);
+	i::Handle<i::Context> internal_context = i::Handle<i::Context>::cast(i::Handle<i::Object>(ctx));
+	i::GlobalObject *internal_global = internal_context->global();
+	i::Handle<i::JSObject> receiver(internal_global->global_receiver());
+	Local<Object> receiver_local(Utils::ToLocal(receiver));
+	main_ctx_global = Persistent<Object>::New(receiver_local);
+
+
+	if (argc)
+		sorrrowctx->LoadMain();
 }
