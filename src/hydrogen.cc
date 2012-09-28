@@ -8653,6 +8653,10 @@ void HGraphBuilder::GenerateReadTwoByteString(CallRuntime* call) {
   return Bailout("inlined runtime function: ReadTwoByteString");
 }
 
+void HGraphBuilder::GenerateReturnContext(CallRuntime* call) {
+	return Bailout("inlined runtime function: ReturnContext");
+}
+
 #ifdef TARGET_WINDOWS
 #define FROM_HYDROGEN_CC
 #include "inlined-pin.h"

@@ -1,53 +1,35 @@
 #include "pintool.h"
 
-Persistent<Function> AnalysisFunctionFastCache[kFastCacheSize];
-
 bool PinContext::CreateJSContext()
 {
 	DEBUG("Create JS Context for " << tid);
 
 	Lock();
 
-	isolate = Isolate::New();
-	if (isolate != 0)
-	{
-		//Enter and lock the new isolate
-		Isolate::Scope iscope(isolate);
-		Locker lock(isolate);
-		HandleScope hscope;
-
-		context = Context::New();
-
-		if (!context.IsEmpty()) {
-			//this is the "receiver" argument for Invoke, it's the "this" of the function called
-			Context::Scope cscope(context);
-
-			Local<ObjectTemplate> objt = ObjectTemplate::New();
-			objt->SetInternalFieldCount(1);
-			Local<Object> obj = objt->NewInstance();
-			context->Global()->SetHiddenValue(String::New("SorrowInstance"), obj);
-
-			sorrowctx = new SorrowContext(0, NULL);
-
-			i::Object** ctx = reinterpret_cast<i::Object**>(*context);
-			i::Handle<i::Context> internal_context = i::Handle<i::Context>::cast(i::Handle<i::Object>(ctx));
-			i::GlobalObject *internal_global = internal_context->global();
-			i::Handle<i::JSObject> receiver(internal_global->global_receiver());
-			Local<Object> receiver_local(Utils::ToLocal(receiver));
-			global = Persistent<Object>::New(receiver_local);
-		}
-		//Scope and Locker are destroyed here.
-	}
-
-	if (context.IsEmpty())
-		SetState(ERROR_CONTEXT);
-	else
-		SetState(INITIALIZED_CONTEXT);
+	ctxswitch = new PinContextSwitch((uintptr_t)&ConstructInsertCallProxy, 1);
+	ctxswitch->args[1] = (uintptr_t)this;
+	SetState(INITIALIZED_CONTEXT);
 
 	Unlock();
-	Notify();
 
-	return GetState() == INITIALIZED_CONTEXT;
+	return true;
+}
+
+void PinContext::DestroyInsertCallProxy()
+{
+	{
+		Isolate::Scope iscope(isolate);
+		Unlocker unlock(isolate);
+		{
+			Locker lock(isolate);
+			DEBUG("Calling AF destructors for TID=" << GetTid() << " on TID=" << PIN_ThreadId());
+			PinContextSwitch *buffer = GetContextSwitchBuffer();
+			buffer->passbuffer[0] = PinContextSwitch::FINISH_CTX;
+			EnterContext(buffer);
+		}
+	}
+
+	isolate->Dispose();
 }
 
 void PinContext::DestroyJSContext()
@@ -64,54 +46,9 @@ void PinContext::DestroyJSContext()
 
 	if (isolate != 0)
 	{
-		{
-			Isolate::Scope iscope(isolate);
-			Locker lock(isolate);
+		DestroyInsertCallProxy();
 
-			if (!context.IsEmpty())
-			{
-				{
-					HandleScope hscope;
-					Context::Scope cscope(context);
-					AnalysisFunction *af;
-					TryCatch trycatch;
-
-					//Call the AF destructors for all Ensured functions
-					for (unsigned int idx=0; idx < ctxmgr->GetLastFunctionId(); idx++) {
-						af = ctxmgr->GetFunction(idx);
-
-						//check if the function was actually used (cached)
-						if (af && funcache.find(af->GetHash()) != funcache.end()) {
-							const string& dtor = af->GetDtor();
-							if (!dtor.empty()) {
-								DEBUG("Calling AF Destructor for AF Hash:" << af->GetHash() << " on TID:" << GetTid());
-								sorrowctx->LoadScript(dtor.c_str(), dtor.size());
-							}
-						}
-					}
-				}
-
-				V8::TerminateExecution(isolate);
-
-				if (GetTid() <= kFastCacheMaxTid) {
-					for (int x=0; x <= kFastCacheMaxFuncId; x++) {
-						Persistent<Function>& tmp = AnalysisFunctionFastCache[GetFastCacheIndex(x)];
-						if (!tmp.IsEmpty()) {
-							tmp.Dispose();
-							tmp.Clear();
-						}
-					}
-				}
-
-				delete sorrowctx;
-
-				global.Dispose();
-				context.Dispose();
-				V8::ContextDisposedNotification();
-			}
-		}
-
-		isolate->Dispose();
+		delete ctxswitch;
 	}
 
 	Unlock();
@@ -129,66 +66,53 @@ VOID PinContext::ThreadInfoDestructor(VOID *v)
 	context->Lock();
 	context->SetState(PinContext::KILLING_CONTEXT);
 	context->Unlock();
-	context->Notify();
+
+	context->DestroyJSContext();
 }
 
-Persistent<Function> PinContext::EnsureFunction(AnalysisFunction *af)
-{
-	//Encode tid and funcid info and see if it fits in the fast cache, go the slow way if not.
-	unsigned int index = GetFastCacheIndex(af->GetFuncId());
-	if (index != kInvalidFastCacheIndex) {
-		Persistent<Function> tmp = AnalysisFunctionFastCache[index];
-		if (!tmp.IsEmpty())
-			return tmp;
+void __declspec(naked) __stdcall ReturnContext(PinContextSwitch *buffer) {
+	__asm {
+		MOV eax, [esp+4]
+		MOV [eax]PinContextSwitch.newstate[0], ebx
+		MOV [eax]PinContextSwitch.newstate[4], esi
+		MOV [eax]PinContextSwitch.newstate[8], edi
+		MOV [eax]PinContextSwitch.newstate[12], ebp
+
+		//ret address
+		MOV ebx, [esp] 
+		MOV [eax]PinContextSwitch.neweip, ebx
+
+		//simulate a ret 4
+		add esp, 8
+		MOV [eax]PinContextSwitch.newstate[16], esp
+
+		//switch to the saved stack and registers
+		MOV ebx, [eax]PinContextSwitch.savedstate[0]
+		MOV esi, [eax]PinContextSwitch.savedstate[4]
+		MOV edi, [eax]PinContextSwitch.savedstate[8]
+		MOV ebp, [eax]PinContextSwitch.savedstate[12]
+		MOV esp, [eax]PinContextSwitch.savedstate[16]
+
+		ret 4
 	}
-	return EnsureFunctionSlow(af);
 }
 
-Persistent<Function> PinContext::EnsureFunctionSlow(AnalysisFunction *af)
-{
-	FunctionsCacheMap::const_iterator it;
+void __declspec(naked) __stdcall EnterContext(PinContextSwitch *buffer) {
+	__asm {
+		MOV eax, [esp+4]
+		MOV [eax]PinContextSwitch.savedstate[0], ebx
+		MOV [eax]PinContextSwitch.savedstate[4], esi
+		MOV [eax]PinContextSwitch.savedstate[8], edi
+		MOV [eax]PinContextSwitch.savedstate[12], ebp
+		MOV [eax]PinContextSwitch.savedstate[16], esp
 
-	it = funcache.find(af->GetHash());
-	if (it != funcache.end())
-		return it->second;
+		//switch to the new stack and registers
+		MOV ebx, [eax]PinContextSwitch.newstate[0]
+		MOV esi, [eax]PinContextSwitch.newstate[4]
+		MOV edi, [eax]PinContextSwitch.newstate[8]
+		MOV ebp, [eax]PinContextSwitch.newstate[12]
+		MOV esp, [eax]PinContextSwitch.newstate[16]
 
-	DEBUG("EnsureFunction hash:" << af->GetHash());
-
-	HandleScope scope;
-	Handle<String> source = String::Concat(String::Concat(String::New("("), String::New(af->GetBody().c_str())), String::New(")"));
-
-	TryCatch trycatch;
-	Handle<Script> script = Script::Compile(source);
-	if (trycatch.HasCaught()) {
-		DEBUG("Exception compiling on TID:" << GetTid());
-		DEBUG(ReportExceptionToString(&trycatch));
-		KillPinTool();
+		JMP [eax]PinContextSwitch.neweip
 	}
-
-	Handle<Value> fun_val = script->Run();
-	if (!fun_val->IsFunction()) {
-		DEBUG("Function body didn't create a function on TID:" << GetTid());
-		KillPinTool();
-	}
-
-	Persistent<Function> newfun = Persistent<Function>::New(Handle<Function>::Cast(fun_val));
-
-	//If the function is set with a name (non-anonymous function) make it available globally.
-	Handle<Value> name_val = newfun->GetName();
-	if (!name_val.IsEmpty()) {
-		Handle<String> name(String::Cast(*name_val));
-		GetContext()->Global()->Set(name, fun_val);
-	}
-
-	const string& init = af->GetInit();
-	if (!init.empty()) {
-		sorrowctx->LoadScript(init.c_str(), init.size());
-	}
-
-	funcache[af->GetHash()] = newfun;
-	unsigned int index = GetFastCacheIndex(af->GetFuncId());
-	if (index != kInvalidFastCacheIndex)
-		AnalysisFunctionFastCache[index] = newfun;
-
-	return newfun;
 }

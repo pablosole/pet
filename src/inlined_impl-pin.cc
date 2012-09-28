@@ -1,6 +1,49 @@
 #ifdef INLINED_IMPL
 #define FUN(NAME) void FullCodeGenerator::Emit##NAME(CallRuntime* expr)
 
+FUN(ReturnContext)
+{
+	ZoneList<Expression*>* args = expr->arguments();
+	ASSERT(args->length == 1);
+
+	VisitForAccumulatorValue(args->at(0));
+	__ ReadInteger(eax);
+
+	__ push(ecx);
+	__ push(edx);
+
+	//newstate
+	__ mov(Operand(eax, kPointerSize * 6), ebx);
+	__ mov(Operand(eax, kPointerSize * 7), esi);
+	__ mov(Operand(eax, kPointerSize * 8), edi);
+	__ mov(Operand(eax, kPointerSize * 9), ebp);
+	__ mov(Operand(eax, kPointerSize * 10), esp);
+
+	//ret address
+	Label retaddr;
+	__ call (&retaddr);
+	__ bind(&retaddr);
+	__ pop(ebx);
+
+	//point EIP after the RET 4
+	__ add(ebx, Immediate(0x18));
+
+	//neweip
+	__ mov(Operand(eax, kPointerSize * 5), ebx);
+
+	//switch to the saved stack and registers
+	__ mov(ebx, Operand(eax, kPointerSize * 0));
+	__ mov(esi, Operand(eax, kPointerSize * 1));
+	__ mov(edi, Operand(eax, kPointerSize * 2));
+	__ mov(ebp, Operand(eax, kPointerSize * 3));
+	__ mov(esp, Operand(eax, kPointerSize * 4));
+
+	__ ret(4);
+
+	__ pop(edx);
+	__ pop(ecx);
+}
+
 //ptr, size (0 means strlen, size is in two-bytes chars)
 FUN(ReadTwoByteString)
 {
