@@ -23,12 +23,10 @@ VOID InitializePerThreadContexts(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *
 	if (ctxmgr->IsDieing())
 		return;
 
-	PinContext *pincontext = ctxmgr->CreateContext(tid, false);
+	PinContext *pincontext = ctxmgr->CreateContext(tid);
 
 	//set the per-thread context class to the per-thread scratch register allocated for it.
 	PIN_SetContextReg(ctx, ctxmgr->GetPerThreadContextReg(), reinterpret_cast<ADDRINT>(pincontext));
-
-	DEBUG("JS Context for " << tid << " queued for initialization");
 }
 
 VOID AddThreads(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *v)
@@ -69,23 +67,25 @@ VOID RemoveThreads(THREADID tid, const CONTEXT *ctx, INT32 code, VOID *v)
 	if (!ctxmgr->IsRunning())
 		return;
 
-	Locker locker;
-	Context::Scope context_scope(ctxmgr->GetDefaultContext());
-	HandleScope hscope;
-	Local<Object> global = ctxmgr->GetDefaultContext()->Global();
-	Local<Value> funval = global->Get(String::New("removeThread"));
-	if (!funval->IsFunction()) {
-		DEBUG("removeThread not found");
-		KillPinTool();
+	{
+		Locker locker;
+		Context::Scope context_scope(ctxmgr->GetDefaultContext());
+		HandleScope hscope;
+		Local<Object> global = ctxmgr->GetDefaultContext()->Global();
+		Local<Value> funval = global->Get(String::New("removeThread"));
+		if (!funval->IsFunction()) {
+			DEBUG("removeThread not found");
+			KillPinTool();
+		}
+
+		const int argc = 1;
+		Local<Value> argv[argc];
+
+		argv[0] = Integer::NewFromUnsigned(tid);
+
+		Local<Function> fun = Local<Function>::Cast(funval);
+		fun->Call(global, argc, argv);
 	}
-
-	const int argc = 1;
-	Local<Value> argv[argc];
-
-	argv[0] = Integer::NewFromUnsigned(tid);
-
-	Local<Function> fun = Local<Function>::Cast(funval);
-	fun->Call(global, argc, argv);
 }
 
 VOID ContextFini(INT32 code, VOID *v)
@@ -112,6 +112,7 @@ VOID ContextFini(INT32 code, VOID *v)
 	ctxmgr->KillAllContexts();
 	delete ctxmgr;
 }
+
 
 int main(int argc, char * argv[])
 {
