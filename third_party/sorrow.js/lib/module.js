@@ -37,7 +37,7 @@ Module.prototype.load = function() {
     
     require.main = self.main;
     if (this.filename == "internal")
-	var script = "(" + this.script + ")();";
+	var script = this.script;
     else
 	var script = fs.open(this.filename,'rb').read().decodeToString('utf-8');
 

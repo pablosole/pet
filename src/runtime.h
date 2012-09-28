@@ -535,7 +535,8 @@ namespace internal {
   F(WriteDouble, 2, 0)                                                       \
   F(ReadDouble, 1, 1)                                                        \
   F(ReadAsciiString, 2, 1)                                                   \
-  F(ReadTwoByteString, 2, 1)                                                \
+  F(ReadTwoByteString, 2, 1)                                                 \
+  F(ReturnContext, 1, 0)                                                     \
   F(JSStringFromCString, 1, 1)
 
 #ifdef TARGET_WINDOWS

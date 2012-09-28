@@ -485,6 +485,62 @@ VOID InternalThreadProxy(VOID *arg) {
 	pobj.Dispose();
 }
 
+VOID ConstructInsertCallProxy(PinContextSwitch *buffer, PinContext *pincontext)
+{
+	Isolate *isolate = Isolate::New();
+	Persistent<Context> context;
+
+	if (isolate)
+	{
+		//Enter and lock the new isolate
+		Isolate::Scope iscope(isolate);
+		Locker lock(isolate);
+		HandleScope hscope;
+
+		context = Context::New();
+
+		if (!context.IsEmpty()) {
+			Context::Scope cscope(context);
+
+			Local<ObjectTemplate> objt = ObjectTemplate::New();
+			objt->SetInternalFieldCount(1);
+			Local<Object> obj = objt->NewInstance();
+			context->Global()->SetHiddenValue(String::New("SorrowInstance"), obj);
+
+			SorrowContext *sorrowctx = new SorrowContext(0, NULL);
+
+			pincontext->SetIsolate(isolate);
+			pincontext->SetContext(context);
+			pincontext->SetSorrowContext(sorrowctx);
+
+			string source = "AfSetup(";
+			char buf[30] = {0};
+			sprintf(buf, "%u", (uint32_t)buffer);
+			source += buf;
+			source += ", require);";
+
+			sorrowctx->LoadScript(source.c_str(), source.size());
+
+			//we get here after a FINISH_CTX action is received
+			V8::TerminateExecution(isolate);
+			delete sorrowctx;
+		} else {
+			DEBUG("Failed to create Context for TID " << PIN_ThreadId());
+			KillPinTool();
+		}
+		//Scope and Locker are destroyed here.
+	} else {
+		DEBUG("Failed to create Isolate for TID " << PIN_ThreadId());
+		KillPinTool();
+	}
+
+	context.Dispose();
+	V8::ContextDisposedNotification();
+
+	ReturnContext(buffer);
+	//never reachs here
+}
+
 VOID InsertCallProxy(PinContext *context, AnalysisFunction *af, uint32_t argc, ...)
 {
 	va_list argptr;
@@ -497,40 +553,38 @@ VOID InsertCallProxy(PinContext *context, AnalysisFunction *af, uint32_t argc, .
 	if (context->GetState() != PinContext::INITIALIZED_CONTEXT)
 		return;
 
-	Isolate::Scope iscope(context->GetIsolate());
-	Locker lock(context->GetIsolate());
-	HandleScope hscope;
-	Context::Scope cscope(context->GetContext());
+	PinContextSwitch *buffer = context->GetContextSwitchBuffer();
 
-	Persistent<Function> fun = context->EnsureFunction(af);
+	if (!context->IsAFCtorCalled()) {
+		context->SetAFCtorCalled();
+
+		DEBUG("Calling ConstructInsertCallProxy for Context id=" << context->GetTid());
+		EnterContext(buffer);
+
+		for (uint32_t x=0; x < ctxmgr->GetLastFunctionId(); x++) {
+			AnalysisFunction *tmp = ctxmgr->GetFunction(x);
+			DEBUG("Calling constructor for AF id=" << tmp->GetFuncId() << " on TID=" << context->GetTid());
+			buffer->passbuffer[0] = PinContextSwitch::PREPARE_AF;
+			buffer->passbuffer[1] = x;
+			buffer->passbuffer[2] = (uintptr_t)tmp->GetBody().c_str();
+			buffer->passbuffer[3] = (uintptr_t)tmp->GetInit().c_str();
+			buffer->passbuffer[4] = (uintptr_t)tmp->GetDtor().c_str();
+			EnterContext(buffer);
+		}
+	}
+
+	buffer->passbuffer[0] = PinContextSwitch::EXECUTE_AF;
+	buffer->passbuffer[1] = af->GetFuncId();
+	buffer->passbuffer[2] = argc;
 
 	va_start(argptr, argc);
 
-	//_malloca allocates from the stack unless the size is >1024
-	//stack allocation is faster than heap and in that case _freea becomes basically a NOOP
-	Handle<Value> *argv = reinterpret_cast<Handle<Value> *>(_malloca(sizeof(char *) * argc));
-
 	for (uint32_t x=0; x < argc; x++)
-		argv[x] = Uint32::NewFromUnsigned(va_arg(argptr, uint32_t));
+		buffer->passbuffer[3+x] = va_arg(argptr, uintptr_t);
 
 	va_end(argptr);
 
-	TryCatch trycatch;
-
-	fun->FastCall(context->GetIsolate(), *(context->GetContext()), context->GetGlobal(), argc, argv);
-
-	if (trycatch.HasCaught())
-	{
-		af->IncException();
-		af->SetLastException(ReportExceptionToString(&trycatch));
-		DEBUG("Exception on AF: " << af->GetLastException());
-
-		//Disable the function if there's too many exceptions
-		if (af->GetNumExceptions() > af->GetThreshold() || !trycatch.CanContinue())
-			af->Disable();
-	}
-
-	_freea(argv);
+	EnterContext(buffer);
 }
 
 

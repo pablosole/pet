@@ -1799,6 +1799,88 @@ function AnalysisFunctionEnabledSetter(val) {
     return global.setEnabledAF(this.external, tmp);
 }
 
+var $afs = new $Object();
+global.AfSetup = function(buffer, require) {
+	var passbuffer_offset = 11 * 4;
+	var afs = $afs;
+	var arg0 = 0;
+	var arg1 = 0;
+	var arg2 = 0;
+	var arg3 = 0;
+	var arg4 = 0;
+	var arg5 = 0;
+	var arg6 = 0;
+	var arg7 = 0;
+	var arg8 = 0;
+	var arg9 = 0;
+	
+	while (true) {
+		%_ReturnContext(buffer);
+		
+		var action = %_ReadPointer(buffer + passbuffer_offset);
+		var afid = %_ReadPointer(buffer + passbuffer_offset + 4);
+	
+		if (action == 0) {
+			//prepare AF
+			var cback_ptr = %_ReadPointer(buffer + passbuffer_offset + 8);
+			var ctor_ptr = %_ReadPointer(buffer + passbuffer_offset + 12);
+			var dtor_ptr = %_ReadPointer(buffer + passbuffer_offset + 16);
+			var cback = %_ReadAsciiString(cback_ptr, 0);
+			var ctor = %_ReadAsciiString(ctor_ptr, 0);
+			var dtor = %_ReadAsciiString(dtor_ptr, 0);
+			
+			afs[afid] = new $Array();
+			afs[afid][0] = GlobalEval("(" + cback + ")");
+			afs[afid][1] = GlobalEval("(" + ctor + ")");
+			afs[afid][2] = GlobalEval("(" + dtor + ")");
+			
+			//call ctor
+			afs[afid][1](require);
+		} else if (action == 1) {
+			//call AF callback
+			var numargs = %_ReadPointer(buffer + passbuffer_offset + 8);
+			
+			//I'm not being lazy, this is supposed to be faster than constructing an array of arguments
+			switch (numargs) {
+				default:
+				case 10: arg9 = %_ReadPointer(buffer + passbuffer_offset + 12 + 9*4);
+				case 9:  arg8 = %_ReadPointer(buffer + passbuffer_offset + 12 + 8*4);
+				case 8:  arg7 = %_ReadPointer(buffer + passbuffer_offset + 12 + 7*4);
+				case 7:  arg6 = %_ReadPointer(buffer + passbuffer_offset + 12 + 6*4);
+				case 6:  arg5 = %_ReadPointer(buffer + passbuffer_offset + 12 + 5*4);
+				case 5:  arg4 = %_ReadPointer(buffer + passbuffer_offset + 12 + 4*4);
+				case 4:  arg3 = %_ReadPointer(buffer + passbuffer_offset + 12 + 3*4);
+				case 3:  arg2 = %_ReadPointer(buffer + passbuffer_offset + 12 + 2*4);
+				case 2:  arg1 = %_ReadPointer(buffer + passbuffer_offset + 12 + 1*4);
+				case 1:  arg0 = %_ReadPointer(buffer + passbuffer_offset + 12 + 0*4);
+				case 0:	 break;				
+			}
+			
+			switch (numargs) {
+				case 0: afs[afid][0](); break;
+				case 1: afs[afid][0](arg0); break;
+				case 2: afs[afid][0](arg0,arg1); break;
+				case 3: afs[afid][0](arg0,arg1,arg2); break;
+				case 4: afs[afid][0](arg0,arg1,arg2,arg3); break;
+				case 5: afs[afid][0](arg0,arg1,arg2,arg3,arg4); break;
+				case 6: afs[afid][0](arg0,arg1,arg2,arg3,arg4,arg5); break;
+				case 7: afs[afid][0](arg0,arg1,arg2,arg3,arg4,arg5,arg6); break;
+				case 8: afs[afid][0](arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7); break;
+				case 9: afs[afid][0](arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8); break;
+				default:
+				case 10:afs[afid][0](arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9); break;
+			}
+		} else if (action == 2) {
+			//call all destructor functions
+			for (var idx in afs)
+				afs[idx][2](require);
+			
+			//and exit the loop
+			return;
+		}
+	}	
+}
+
 function SetupAnalysisFunction() {
     %FunctionSetInstanceClassName($AnalysisFunction, 'AnalysisFunction');
     %SetProperty($AnalysisFunction.prototype, "constructor", $AnalysisFunction, DONT_ENUM);
@@ -1816,6 +1898,9 @@ global.ArgsArray = function() {
     }
     
     var len = %_ArgumentsLength();
+    for (var x=0; x < len; x++)
+		if (IS_ARRAY(arguments[x]) && IS_OBJECT(arguments[x][1]))
+			arguments[x][1] = arguments[x][1].external;
     this.external = new global.IntArgsArray(arguments, len);
     
     this.type = "ArgsArray";
