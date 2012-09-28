@@ -181,11 +181,6 @@ Handle<Value> evalOnContext(PinContext *pincontext_src, PinContext *pincontext_d
 	return evalOnContext(isolate_src, context_src, isolate_dst, context_dst, source);
 }
 
-Handle<Value> evalOnDefaultContext(PinContext *context_src, const string& source)
-{
-	return evalOnContext(context_src->GetIsolate(), context_src->GetContext(), ctxmgr->GetDefaultIsolate(), ctxmgr->GetSharedDataContext(), source);
-}
-
 void forceGarbageCollection()
 {
     for (unsigned int i = 0; i < 4096; ++i)
