@@ -1948,6 +1948,16 @@ void Assembler::cvtsi2sd(XMMRegister dst, const Operand& src) {
 }
 
 
+void Assembler::orpd(XMMRegister dst, XMMRegister src) {
+	ASSERT(CpuFeatures::IsEnabled(SSE2));
+	EnsureSpace ensure_space(this);
+	EMIT(0x66);
+	EMIT(0x0F);
+	EMIT(0x56);
+	emit_sse_operand(dst, src);
+}
+
+
 void Assembler::cvtss2sd(XMMRegister dst, XMMRegister src) {
   ASSERT(CpuFeatures::IsEnabled(SSE2));
   EnsureSpace ensure_space(this);

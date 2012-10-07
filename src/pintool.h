@@ -94,80 +94,84 @@ size_t convertToUint(Local<Value> value_in, TryCatch* try_catch);
 uint32_t NumberToUint32(Local<Value> value_in, TryCatch* try_catch);
 
 //Context switcher for fast instrumentation
-struct PinContextSwitch {
-	enum CtxSwitchActions { PREPARE_AF, EXECUTE_AF, FINISH_CTX };
-	PinContextSwitch(uintptr_t fptr, uint32_t num) {
-		memset(stack, 0, sizeof(stack));
-		memset(passbuffer, 0, sizeof(passbuffer));
+struct PinContextAction {
+	enum CtxSwitchActions { 
+		NOT_READY = 0,
+		PREPARE_AF, 
+		EXECUTE_AF, 
+		FINISH_CTX, 
+		CALL_EVENT_HANDLER, 
+		INS_EVENT_HANDLER,
+		RTN_EVENT_HANDLER,
+		TRACE_EVENT_HANDLER,
+		EVAL
+	};
 
-		//ESP points to the end of our stack
-		neweip = fptr;
-		num_args = num+1;
-		args = &stack[0xFFFF-num_args];
-		args[0] = (uintptr_t)this;
-		newstate[4] = (uintptr_t)&stack[0xFFFF-num_args-1];
-	}
+	CtxSwitchActions type;
+	union {
+		struct {
+			uint32_t afid;
+			uintptr_t ctor;
+			uintptr_t dtor;
+			uintptr_t cback;
+		} PrepareAF;
+		struct {
+			uint32_t afid;
+			uintptr_t c_args;
+		} CallAF;
+		struct {
+			uint32_t event_type;
+			uintptr_t c_args;
+		} CallEventHandler;
+		struct {
+			uintptr_t c_args;
+		} InsEventHandler;
+		struct {
+			uintptr_t c_args;
+		} RtnEventHandler;
+		struct {
+			uintptr_t c_args;
+		} TraceEventHandler;
+		struct {
+			uintptr_t code;   //this is a char * pointer
+			uintptr_t result; //this is placeholder pointer for the result
+		} Eval;
+	} u;
+};
+
+struct PinContextSwitch {
+	PinContextSwitch(uintptr_t fptr, uint32_t num);
+
+	struct PinContextAction *AllocateAction();
+
+	static const int kMaxContextActions = 256;
 
 	//EBX,ESI,EDI,EBP,ESP
 	uintptr_t savedstate[5];
 	uintptr_t neweip;
 	uintptr_t newstate[5];
-	uintptr_t passbuffer[0x30];
+	long volatile current_action;
+	struct PinContextAction actions[kMaxContextActions];
 	uintptr_t stack[0x10000];
 	uintptr_t *args;
 	uint32_t num_args;
 };
 void __stdcall ReturnContext(PinContextSwitch *buffer);
 void __stdcall EnterContext(PinContextSwitch *buffer);
-VOID ConstructInsertCallProxy(PinContextSwitch *buffer, PinContext *context);
 
 //we associate each PinContext with an application thread.
 class CACHE_ALIGN PinContext {
 public:
-	enum ContextState { NEW_CONTEXT, INITIALIZED_CONTEXT, KILLING_CONTEXT, DEAD_CONTEXT, ERROR_CONTEXT };
-
-	PinContext(THREADID _tid)
-	{
-		tid = _tid;
-		PIN_MutexInit(&lock);
-		PIN_SemaphoreInit(&changed);
-		PIN_SemaphoreClear(&changed);
-		state = NEW_CONTEXT;
-		context.Clear();
-		isolate = 0;
-		sorrowctx = 0;
-		afctorscalled = false;
-	}
-	~PinContext() {
-		PIN_MutexFini(&lock);
-		PIN_SemaphoreFini(&changed);
-	}
-
-	ContextState inline GetState() { return state; }
-	void inline SetState(ContextState s) { state = s; }
-
-	void inline Lock() { PIN_MutexLock(&lock); }
-	void inline Unlock() { PIN_MutexUnlock(&lock); }
-	void inline Wait() {
-		PIN_SemaphoreWait(&changed);
-		PIN_SemaphoreClear(&changed);
-	}
-	void inline WaitIfNotReady() {
-		if (GetState() == NEW_CONTEXT)
-			Wait();
-	}
-	void inline Notify() { PIN_SemaphoreSet(&changed); }
+	PinContext(THREADID _tid);
+	~PinContext();
 
 	THREADID inline GetTid() { return tid; }
-
-	bool CreateJSContext();
-	void DestroyJSContext();
 
 	static VOID ThreadInfoDestructor(VOID *);
 
 	static bool inline IsValid(PinContext *context) { return !(context == 0 || context == INVALID_PIN_CONTEXT || context == NO_MANAGER_CONTEXT); }
 
-	inline PinContextSwitch *GetContextSwitchBuffer() { return ctxswitch; }
+	inline PinContextSwitch *GetContextSwitchBuffer() { return &ctxswitch; }
 	inline SorrowContext *GetSorrowContext() { return sorrowctx; }
 	inline Isolate *GetIsolate() { return isolate; }
 	inline Persistent<Context> &GetContext() { return context; }
@@ -176,18 +180,14 @@ public:
 	inline void SetContext(Persistent<Context> &ctx) { context = ctx; }
 	inline bool IsAFCtorCalled() { return afctorscalled; }
 	inline void SetAFCtorCalled(bool _new=true) { afctorscalled = _new; }
-	void DestroyInsertCallProxy();
 
 private:
 	Isolate *isolate;
 	Persistent<Context> context;
 	SorrowContext *sorrowctx;
 	THREADID tid;
-	enum ContextState state;
-	PIN_MUTEX lock;
-	PIN_SEMAPHORE changed;
 	bool afctorscalled;
-	PinContextSwitch *ctxswitch;
+	PinContextSwitch ctxswitch;
 };
 
 
@@ -195,29 +195,13 @@ typedef std::map<THREADID, PinContext *> ContextsMap;
 typedef std::map<unsigned int, AnalysisFunction *> FunctionsMap;
 class ContextManager {
  public:
-	enum ContextManagerState { RUNNING_MANAGER, ERROR_MANAGER, KILLING_MANAGER, DEAD_MANAGER };
+	enum ContextManagerState { RUNNING_MANAGER, ERROR_MANAGER, DEAD_MANAGER };
 	ContextManager();
 	~ContextManager();
 
-	inline bool IsValid() { return (state == RUNNING_MANAGER || state == KILLING_MANAGER); }
-	inline bool IsRunning() { return state == RUNNING_MANAGER; }
-	inline bool IsDieing() { return state == KILLING_MANAGER; }
+	inline bool IsValid() { return state == RUNNING_MANAGER; }
 	ContextManagerState inline GetState() { return state; }
 	void inline SetState(ContextManagerState s) { state = s; }
-
-	void inline Ready() { PIN_SemaphoreSet(&ready); }
-	void inline WaitReady() { PIN_SemaphoreWait(&ready); }
-	bool inline IsReady() { return PIN_SemaphoreIsSet(&ready); }
-
-	void inline Wait() {
-		PIN_SemaphoreWait(&changed);
-		PIN_SemaphoreClear(&changed);
-	}
-	void inline Notify() { PIN_SemaphoreSet(&changed); }
-	void inline Abort() {
-		SetState(KILLING_MANAGER);
-		Notify();
-	}
 
 	REG inline GetPerThreadContextReg() { return per_thread_context_reg; }
 	REGSET inline GetPreservedRegset() { return preserved_regs; }
@@ -227,41 +211,18 @@ class ContextManager {
 
 	void inline Lock() { PIN_MutexLock(&lock); }
 	void inline Unlock() { PIN_MutexUnlock(&lock); }
-	void inline LockCallbacks() { PIN_MutexLock(&lock_callbacks); }
-	void inline UnlockCallbacks() { PIN_MutexUnlock(&lock_callbacks); }
-	bool inline CallbacksIsProcessing() {
-		if (PIN_MutexTryLock(&lock_callbacks) == false)
-			return true;
-		else
-			PIN_MutexUnlock(&lock_callbacks);
-		return false;
-	}
 	void inline LockFunctions() { PIN_RWMutexWriteLock(&lock_functions); }
 	void inline UnlockFunctions() { PIN_RWMutexUnlock(&lock_functions); }
 	void inline LockFunctionsRead() { PIN_RWMutexReadLock(&lock_functions); }
 
-
-	//Context Manager thread function
-	static VOID Run(VOID *);
-
 	//Helper functions
-	void ProcessCallbacks();
-	void ProcessChanges();
 	void KillAllContexts();
 	PinContext *CreateContext(THREADID tid);
-	static VOID ProcessCallbacksHelper(VOID *v);
+	bool DestroyContext(THREADID tid);
 
 	//API
-	bool EnsurePinContextCallback(THREADID tid, ENSURE_CALLBACK_FUNC *callback, VOID *v, bool create = true);
-	PinContext *EnsurePinContext(THREADID tid, bool create = true);
 	inline uint32_t IsInstrumentationEnabled(uint32_t idx) { return (instrumentation_flags & (1 << idx)) != 0; }
 	inline void EnableInstrumentation(uint32_t idx) { instrumentation_flags |= 1 << idx; }
-
-	//for fast access, this should be equivalent to: TlsGetValue(per_thread_context)
-	inline PinContext *LoadPinContext(THREADID tid) {
-		return EnsurePinContext(tid, false);
-	}
-	inline PinContext *LoadPinContext() { return LoadPinContext(PIN_ThreadId()); }
 
 	//AnalysisFunction API
 	AnalysisFunction *AddFunction(const string& body, const string& init=string(), const string& dtor=string());
@@ -285,11 +246,7 @@ class ContextManager {
 	list<EnsureCallback *> callbacks;
 	FunctionsMap functions;
 	PIN_MUTEX lock;
-	PIN_MUTEX lock_callbacks;
 	PIN_RWMUTEX lock_functions;
-	PIN_SEMAPHORE changed;
-	THREADID tid;
-	PIN_SEMAPHORE ready;
 	TLS_KEY per_thread_context_key;
 	unsigned int last_function_id;
 

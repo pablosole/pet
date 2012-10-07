@@ -36,7 +36,8 @@ namespace sorrow {
 	}
 
 	V8_FUNCTN(Quit) {
-		ctxmgr->Abort();
+		ctxmgr->KillAllContexts();
+		KillPinTool();
 		return Undefined();
 	} // Quit
 

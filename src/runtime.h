@@ -523,33 +523,22 @@ namespace internal {
   F(IsRegExpEquivalent, 2, 1)                                                \
   F(HasCachedArrayIndex, 1, 1)                                               \
   F(GetCachedArrayIndex, 1, 1)                                               \
-  F(FastAsciiArrayJoin, 2, 1)                                                \
-  F(WrapPointer, 2, 0)                                                       \
-  F(UnwrapPointer, 1, 1)                                                     \
-  F(WritePointer, 2, 0)                                                      \
-  F(ReadPointer, 1, 1)                                                       \
-  F(WriteWord, 2, 0)                                                         \
-  F(ReadWord, 1, 1)                                                          \
-  F(WriteByte, 2, 0)                                                         \
-  F(ReadByte, 1, 1)                                                          \
-  F(WriteDouble, 2, 0)                                                       \
-  F(ReadDouble, 1, 1)                                                        \
-  F(ReadAsciiString, 2, 1)                                                   \
-  F(ReadTwoByteString, 2, 1)                                                 \
-  F(ReturnContext, 1, 0)                                                     \
-  F(JSStringFromCString, 1, 1)
+  F(FastAsciiArrayJoin, 2, 1)
 
 #ifdef TARGET_WINDOWS
 #define FROM_RUNTIME_H
 #include "inlined-pin.h"
+#include "inlined-pin-helpers.h"
 #undef FROM_RUNTIME_H
 #else
 #define INLINE_FUNCTION_LIST_PIN(F)
+#define INLINE_FUNCTION_LIST_PIN_HELPERS(F)
 #endif
 
 #define INLINE_FUNCTION_LIST(F) \
 	INLINE_FUNCTION_LIST_V8(F) \
-	INLINE_FUNCTION_LIST_PIN(F)
+	INLINE_FUNCTION_LIST_PIN(F) \
+	INLINE_FUNCTION_LIST_PIN_HELPERS(F)
 
 // ----------------------------------------------------------------------------
 // INLINE_AND_RUNTIME_FUNCTION_LIST defines all inlined functions accessed

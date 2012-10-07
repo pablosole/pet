@@ -20,10 +20,15 @@ VOID InitializePerThreadContexts(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *
 	if (!PIN_IsApplicationThread())
 		return;
 
-	if (ctxmgr->IsDieing())
+	if (!ctxmgr->IsValid())
 		return;
 
 	PinContext *pincontext = ctxmgr->CreateContext(tid);
+
+	if (!PinContext::IsValid(pincontext)) {
+		DEBUG("Failed to create a PinContext instance for TID " << tid);
+		KillPinTool();
+	}
 
 	//set the per-thread context class to the per-thread scratch register allocated for it.
 	PIN_SetContextReg(ctx, ctxmgr->GetPerThreadContextReg(), reinterpret_cast<ADDRINT>(pincontext));
@@ -31,7 +36,7 @@ VOID InitializePerThreadContexts(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *
 
 VOID AddThreads(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *v)
 {
-	if (!ctxmgr->IsRunning())
+	if (!ctxmgr->IsValid())
 		return;
 
 	Locker locker;
@@ -64,7 +69,7 @@ VOID AddThreads(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *v)
 
 VOID RemoveThreads(THREADID tid, const CONTEXT *ctx, INT32 code, VOID *v)
 {
-	if (!ctxmgr->IsRunning())
+	if (!ctxmgr->IsValid())
 		return;
 
 	{
@@ -105,8 +110,6 @@ VOID ContextFini(INT32 code, VOID *v)
 		Local<Function> fun = Local<Function>::Cast(funval);
 		fun->Call(global, 0, NULL);
 	}
-
-	ctxmgr->Abort();
 
 	//If we're here, it means our tool is going to die soon, kill all contexts as gracefully as possible.
 	ctxmgr->KillAllContexts();
@@ -158,6 +161,7 @@ int main(int argc, char * argv[])
 		args[1] = KnobJSFile.Value().c_str();
 		argsc = 2;
 	}
+
 	ctxmgr->InitializeSorrowContext(argsc, args);
 
     // Start the program, never returns

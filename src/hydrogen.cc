@@ -8601,65 +8601,10 @@ void HGraphBuilder::GenerateFastAsciiArrayJoin(CallRuntime* call) {
   return Bailout("inlined runtime function: FastAsciiArrayJoin");
 }
 
-void HGraphBuilder::GenerateJSStringFromCString(CallRuntime* call) {
-  return Bailout("inlined runtime function: JSStringFromCString");
-}
-
-void HGraphBuilder::GenerateWrapPointer(CallRuntime* call) {
-  return Bailout("inlined runtime function: WrapPointer");
-}
-
-void HGraphBuilder::GenerateUnwrapPointer(CallRuntime* call) {
-  return Bailout("inlined runtime function: UnwrapPointer");
-}
-
-void HGraphBuilder::GenerateReadPointer(CallRuntime* call) {
-  return Bailout("inlined runtime function: ReadPointer");
-}
-
-void HGraphBuilder::GenerateWritePointer(CallRuntime* call) {
-  return Bailout("inlined runtime function: WritePointer");
-}
-
-void HGraphBuilder::GenerateReadWord(CallRuntime* call) {
-  return Bailout("inlined runtime function: ReadWord");
-}
-
-void HGraphBuilder::GenerateWriteWord(CallRuntime* call) {
-  return Bailout("inlined runtime function: WriteWord");
-}
-
-void HGraphBuilder::GenerateReadByte(CallRuntime* call) {
-  return Bailout("inlined runtime function: ReadByte");
-}
-
-void HGraphBuilder::GenerateWriteByte(CallRuntime* call) {
-  return Bailout("inlined runtime function: WriteByte");
-}
-
-void HGraphBuilder::GenerateReadDouble(CallRuntime* call) {
-  return Bailout("inlined runtime function: ReadDouble");
-}
-
-void HGraphBuilder::GenerateWriteDouble(CallRuntime* call) {
-  return Bailout("inlined runtime function: WriteDouble");
-}
-
-void HGraphBuilder::GenerateReadAsciiString(CallRuntime* call) {
-  return Bailout("inlined runtime function: ReadAsciiString");
-}
-
-void HGraphBuilder::GenerateReadTwoByteString(CallRuntime* call) {
-  return Bailout("inlined runtime function: ReadTwoByteString");
-}
-
-void HGraphBuilder::GenerateReturnContext(CallRuntime* call) {
-	return Bailout("inlined runtime function: ReturnContext");
-}
-
 #ifdef TARGET_WINDOWS
 #define FROM_HYDROGEN_CC
 #include "inlined-pin.h"
+#include "inlined-pin-helpers.h"
 #undef FROM_HYDROGEN_CC
 #endif
 

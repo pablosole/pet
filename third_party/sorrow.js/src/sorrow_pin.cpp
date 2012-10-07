@@ -6,267 +6,6 @@
 #include "sorrow.h"
 #include <string>
 
-/*
-Pin main objects:
-current
-	*pid
-	*tid
-	*threadId
-	*threadUid
-	thread
-	instruction
-	basicblock
-	trace
-	af
-	event
-	context
-	jscontext
-	isAf()
-	isReplace()
-*process
-	pid
-	exiting
-	exit
-	forcedExit
-images
-	findByAddress() [DONT_ENUM]
-	findById() [DONT_ENUM]
-	open() [DONT_ENUM]
-	return an array of Image objects
-threads
-	return an array of Thread objects
-events
-	return an array of Event objects
-routines
-	findRoutineNameByAddress
-	findRoutineByAddress
-	createRoutine(address, name)
-control
-	isAttaching
-	callAppFunction(context, tid, callconv, fptr, arguments)
-	removeAllInstrumentation
-	detach
-	*yield
-	spawnThread(fun, args) (only from main isolate, create a new context over this isolate per thread)
-	*sleep
-
-Pin constructible objects:
-Image (can be constructed by providing a filename [use IMG_Open])
-	sections
-	symbols
-*	valid
-	entryPoint
-*	name
-	loadOffset
-	startAddress
-	lowAddress
-	highAddress
-	sizeMapped
-	type
-	mainExecutable
-	staticExecutable
-	id
-	findRoutineByName()
-*	previous
-*	next
-*	destroy()
-
-Section
-	image
-	valid
-	routines()
-	name
-	type
-	address
-	size
-	bytes
-	flags (Readable, Writeable, Executable)
-
-Routine
-	section
-	valid
-	name
-	symbol
-	address
-	id
-	range
-	size
-	instructions()
-	attach(point, AF)
-	replace(replace_js_fun, proto, arguments) (RTN_ReplaceSignature)
-
-Prototype
-	toString()
-	name
-	returnType
-	callingConvention
-	arguments
-
-Symbol
-	valid
-	name
-	value
-	address
-	isDynamic
-	isIFunc
-	index
-	undecorateName(style) (complete, nameonly)
-
-Thread
-	valid
-	tid
-	threadId
-	threadUid
-	isActionPending
-	exit
-	isApplicationThread
-	waitForTermination(timeout)
-
-ThreadData(destructor_fun)
-	destructor
-	set(threadId)
-	get(threadId)
-
-ChildProcess
-	pid
-	cmdline (GetCommandLine)
-	setPinCmdline (SetPinCommandLine)
-
-Event
-	type (StartThread, FiniThread, LoadImage, UnloadImage, FiniApp, Routine, Trace, Instruction, FollowChild, StartApp, Detach, Fetch, MemoryAddressTrans, ContextChange, SyscallEnter, SyscallExit)
-
-Instruction
-	attach(point, AF)
-	attachFillBuffer(point, FillBuffer)
-	valid
-	category (CATEGORY_StringShort)
-	isCategory
-	extension (EXTENSION_StringShort)
-	isExtension
-	opcode (OPCODE_StringShort)
-	isOpcode
-	routine
-	toString() (Dissasemble)
-	mnemonic
-	address
-	targetAddress
-	size
-	next
-	nextAddress
-	previous
-	operands (OperandCount)
-	memoryOperands (MemoryOperandCount)
-	readRegs (MaxNumRRegs, RegR)
-	writtenRegs (MaxNumWRegs, RegW)
-	flags (IsMemoryRead, IsMemoryWrite, HasFallThrough, IsLea, IsNop, Is*, IsAddedForFunctionReplacement)
-	is(type) (existence checking, faster than flags)
-	getFarPointer()
-	syscallStandard()
-	segPrefix
-	delete()
-	insertJump(point, addr|reg)
-	insertVersionCase(reg, case_value, version, [call_order])
-
-Operand
-	flags (IsMemory, IsReg, IsImmediate, IsImplicit, IsGsOrFsReg)
-	memory (baseReg, IndexReg, segmentReg, Scale, Offset)
-	reg
-	immediate
-	width
-	is(type)
-
-MemoryOperand
-	operand (INS_MemoryOperandIndexToOperandIndex)
-	size
-	rewrite(reg)
-	is(type)
-	flags (IsRead, IsWritten)
-
-Register (new Register() uses PIN_ClaimToolRegister)
-	valid
-	name
-	toString() (same as name)
-	fullName
-	size
-	type (segment, GP64, GP32, GP16, GP8, FP, PIN32, PIN64)
-	is(type)
-	transformXMMToYMM
-
-Syscall
-	arg(num) (return an accesor object that uses GetSyscallArgument and SetSyscallArgument)
-	number
-	return
-	errno
-
-Context
-	
-
-Trace
-	valid
-	assert()
-	attach(point, AF)
-	basicBlocks
-	isOriginal
-	address
-	size
-	routine
-	hasFallThrough
-	numInstructions
-	stubSize
-	version (TRACE_Version)
-
-BasicBlock
-	valid
-	instructions() (BBL_NumIns)
-	address
-	size
-	isOriginal
-	hasFallThrough
-	attach(point, AF)
-	setVersion() (BBL_SetTargetVersion)
-
-FillBuffer (The unsupported IARG_TYPEs are: IARG_CONTEXT, IARG_REG_REFERENCE, and IARG_REG_CONST_REFERENCE.)
-	valid (false after free())
-	callback
-	pages
-	arguments
-	clone
-	free
-	getBuffer(context)
-
-AnalysisFunction
-	arguments
-	callback  (callback might be a string, a JS function or an External obj, for C++ plugins that define AFs)
-	initCallback (same as callback)
-	enabled
-	exceptionLimit
-	argsFixed (bool)
-
-ArgumentsArray
-	order (CALL_ORDER)
-	returnRegister
-	arguments (ordered array. elements might be a string or an obj with key being the arg type and value being the arg value)
-
-Lock
-	lock
-	unlock
-
-Mutex
-	lock (bool try)
-	unlock
-
-RWMutex
-	readLock(bool try)
-	writeLock(bool try)
-	unlock
-
-* Semaphore
-	set
-	clear
-	isSet
-	wait(timeout)
-*/
-
 //Routine, Trace and Instruction fast boolean checks for instrumentation and dispatcher functions
 uint32_t routine_instrumentation_enabled = 0;
 Persistent<Function> routine_function;
@@ -327,9 +66,6 @@ VOID InstructionProxy(INS ins, VOID *v) {
 }
 
 VOID ApplicationStartProxy(VOID *) {
-	if (!ctxmgr->IsRunning())
-		return;
-
 	Locker locker;
 	Context::Scope context_scope(ctxmgr->GetDefaultContext());
 	HandleScope hscope;
@@ -345,9 +81,6 @@ VOID ApplicationStartProxy(VOID *) {
 }
 
 VOID DetachProxy(VOID *) {
-	if (!ctxmgr->IsRunning())
-		return;
-
 	Locker locker;
 	Context::Scope context_scope(ctxmgr->GetDefaultContext());
 	HandleScope hscope;
@@ -365,9 +98,6 @@ VOID DetachProxy(VOID *) {
 VOID StartThreadProxy(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *v)
 {
 	if (!PIN_IsApplicationThread())
-		return;
-
-	if (!ctxmgr->IsRunning())
 		return;
 
 	Locker locker;
@@ -401,9 +131,6 @@ VOID FiniThreadProxy(THREADID tid, const CONTEXT *ctx, INT32 code, VOID *v)
 	if (!PIN_IsApplicationThread())
 		return;
 
-	if (!ctxmgr->IsRunning())
-		return;
-
 	Locker locker;
 	Context::Scope context_scope(ctxmgr->GetDefaultContext());
 	HandleScope hscope;
@@ -432,9 +159,6 @@ VOID FiniThreadProxy(THREADID tid, const CONTEXT *ctx, INT32 code, VOID *v)
 
 VOID ImageProxy(IMG img, VOID *v)
 {
-	if (!ctxmgr->IsRunning())
-		return;
-
 	Locker locker;
 	Context::Scope context_scope(ctxmgr->GetDefaultContext());
 	HandleScope hscope;
@@ -460,9 +184,6 @@ VOID ImageProxy(IMG img, VOID *v)
 }
 
 VOID InternalThreadProxy(VOID *arg) {
-	if (!ctxmgr->IsRunning())
-		return;
-
 	Locker locker;
 	HandleScope hscope;
 	Context::Scope context_scope(ctxmgr->GetDefaultContext());
@@ -485,106 +206,43 @@ VOID InternalThreadProxy(VOID *arg) {
 	pobj.Dispose();
 }
 
-VOID ConstructInsertCallProxy(PinContextSwitch *buffer, PinContext *pincontext)
-{
-	Isolate *isolate = Isolate::New();
-	Persistent<Context> context;
-
-	if (isolate)
-	{
-		//Enter and lock the new isolate
-		Isolate::Scope iscope(isolate);
-		Locker lock(isolate);
-		HandleScope hscope;
-
-		context = Context::New();
-
-		if (!context.IsEmpty()) {
-			Context::Scope cscope(context);
-
-			Local<ObjectTemplate> objt = ObjectTemplate::New();
-			objt->SetInternalFieldCount(1);
-			Local<Object> obj = objt->NewInstance();
-			context->Global()->SetHiddenValue(String::New("SorrowInstance"), obj);
-
-			SorrowContext *sorrowctx = new SorrowContext(0, NULL);
-
-			pincontext->SetIsolate(isolate);
-			pincontext->SetContext(context);
-			pincontext->SetSorrowContext(sorrowctx);
-
-			string source = "AfSetup(";
-			char buf[30] = {0};
-			sprintf(buf, "%u", (uint32_t)buffer);
-			source += buf;
-			source += ", require);";
-
-			sorrowctx->LoadScript(source.c_str(), source.size());
-
-			//we get here after a FINISH_CTX action is received
-			V8::TerminateExecution(isolate);
-			delete sorrowctx;
-		} else {
-			DEBUG("Failed to create Context for TID " << PIN_ThreadId());
-			KillPinTool();
-		}
-		//Scope and Locker are destroyed here.
-	} else {
-		DEBUG("Failed to create Isolate for TID " << PIN_ThreadId());
-		KillPinTool();
-	}
-
-	context.Dispose();
-	V8::ContextDisposedNotification();
-
-	ReturnContext(buffer);
-	//never reachs here
-}
 
 VOID InsertCallProxy(PinContext *context, AnalysisFunction *af, uint32_t argc, ...)
 {
-	va_list argptr;
-
 	//bailout before doing anything else
 	if (!af->IsEnabled())
 		return;
 
-	//bailout if the JS context is not ready yet
-	if (context->GetState() != PinContext::INITIALIZED_CONTEXT)
-		return;
-
-	PinContextSwitch *buffer = context->GetContextSwitchBuffer();
+	PinContextSwitch *ctxswitch = context->GetContextSwitchBuffer();
 
 	if (!context->IsAFCtorCalled()) {
 		context->SetAFCtorCalled();
 
-		DEBUG("Calling ConstructInsertCallProxy for Context id=" << context->GetTid());
-		EnterContext(buffer);
+		DEBUG("Calling ConstructJSProxy for Context id=" << context->GetTid());
+		EnterContext(ctxswitch);
 
 		for (uint32_t x=0; x < ctxmgr->GetLastFunctionId(); x++) {
 			AnalysisFunction *tmp = ctxmgr->GetFunction(x);
+			if (!tmp)
+				continue;
+
 			DEBUG("Calling constructor for AF id=" << tmp->GetFuncId() << " on TID=" << context->GetTid());
-			buffer->passbuffer[0] = PinContextSwitch::PREPARE_AF;
-			buffer->passbuffer[1] = x;
-			buffer->passbuffer[2] = (uintptr_t)tmp->GetBody().c_str();
-			buffer->passbuffer[3] = (uintptr_t)tmp->GetInit().c_str();
-			buffer->passbuffer[4] = (uintptr_t)tmp->GetDtor().c_str();
-			EnterContext(buffer);
+			PinContextAction *action = ctxswitch->AllocateAction();
+			action->u.PrepareAF.afid = x;
+			action->u.PrepareAF.cback= (uintptr_t)tmp->GetBody().c_str();
+			action->u.PrepareAF.ctor = (uintptr_t)tmp->GetInit().c_str();
+			action->u.PrepareAF.dtor = (uintptr_t)tmp->GetDtor().c_str();
+			action->type             = PinContextAction::PREPARE_AF;
+			EnterContext(ctxswitch);
 		}
 	}
 
-	buffer->passbuffer[0] = PinContextSwitch::EXECUTE_AF;
-	buffer->passbuffer[1] = af->GetFuncId();
-	buffer->passbuffer[2] = argc;
+	PinContextAction *action = ctxswitch->AllocateAction();
+	action->u.CallAF.afid    = af->GetFuncId();
+	action->u.CallAF.c_args  = (uintptr_t) &argc;
+	action->type             = PinContextAction::EXECUTE_AF;
 
-	va_start(argptr, argc);
-
-	for (uint32_t x=0; x < argc; x++)
-		buffer->passbuffer[3+x] = va_arg(argptr, uintptr_t);
-
-	va_end(argptr);
-
-	EnterContext(buffer);
+	EnterContext(ctxswitch);
 }
 
 

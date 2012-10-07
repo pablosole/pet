@@ -491,75 +491,125 @@ class MacroAssembler: public Assembler {
 
   //functions to pass integers
 
-  //reg cannot be eax, eax is trashed
+  //use eax as result, eax is trashed anyway
   void CreateInteger(Register reg, Register result, Register scratch1, Register scratch2) {
 	//if value doesn't fit in 30bits (SMI without the sign bit) allocate a HeapNumber
 	Label slow_alloc;
 	Label allocated;
-	Label fits_on_smi;
+	Label not_fits_on_smi;
 	Label done;
 
 	test(reg, Immediate(0xc0000000));
-	j(zero, &fits_on_smi, Label::kNear);
+	j(not_zero, &not_fits_on_smi, Label::kNear);
 
+	mov(result, reg);
+	SmiTag(result);
+	jmp(&done);
+
+	bind(&not_fits_on_smi);
 	AllocateHeapNumber(result, scratch1, scratch2, &slow_alloc);
 	jmp(&allocated);
 	bind(&slow_alloc);
 	CallRuntime(Runtime::kNumberAlloc, 0);
-	mov (result, eax);
+	if (!result.is(eax))
+		mov (result, eax);
 	bind(&allocated);
 
 	//Converts a 32bit integer to the bottom 64bit double.
 	cvtsi2sd(xmm0, Operand(reg));
 	movdbl(Operand(result, HeapNumber::kValueOffset - kHeapObjectTag), xmm0);
-	jmp(&done);
-
-	bind(&fits_on_smi);
-	mov(result, reg);
-	SmiTag(result);
 
 	bind(&done);
   }
 
-  void ReadInteger(Register reg) {
-	Label smi, end;
+  void CreateInteger(XMMRegister reg, Register result, Register scratch1, Register scratch2) {
+	  Label slow_alloc;
+	  Label allocated;
 
-	JumpIfSmi(reg, &smi, Label::kNear);
+	  AllocateHeapNumber(result, scratch1, scratch2, &slow_alloc);
+	  jmp(&allocated);
+	  bind(&slow_alloc);
+	  CallRuntime(Runtime::kNumberAlloc, 0);
+	  if (!result.is(eax))
+		  mov (result, eax);
+	  bind(&allocated);
+
+	  movdbl(Operand(result, HeapNumber::kValueOffset - kHeapObjectTag), reg);
+  }
+
+  void Int64ToFP(Register low, Register up, XMMRegister out, XMMRegister scratch) {
+	  cvtsi2sd(out, up);
+	  mov (up, Immediate(0x40000000));
+	  cvtsi2sd(scratch, up);
+	  mulsd(out, scratch);
+	  mov (up, Immediate(4));
+	  cvtsi2sd(scratch, up);
+	  mulsd(out, scratch);
+
+	  cvtsi2sd(scratch, low);
+	  orpd(out, scratch);
+  }
+
+  void ReadInteger(Register reg) {
+	Label not_smi, end;
+
+	JumpIfNotSmi(reg, &not_smi, Label::kNear);
+	SmiUntag(reg);
+	jmp(&end);
+
+	bind(&not_smi);
 	movdbl(xmm0, Operand(reg, HeapNumber::kValueOffset - kHeapObjectTag));
 
 	//Converts a 64bit double to a 32bit integer using truncation into a GPR.
 	cvttsd2si(reg, Operand(xmm0));
-	jmp(&end);
-	bind(&smi);
-	SmiUntag(reg);
 	bind(&end);
   }
 
-  //wrapped pointers support
-  void UnwrapPointer(Register reg) {
-	//first internal field for a JSOBject
-	mov (reg, Operand(reg, JSObject::kHeaderSize - kHeapObjectTag));
+  //Wrapped pointers support
+  //it uses the value storage from a HeapNumber obj or a SMI if it fits and is 2-bytes aligned
+  //this way we also support x64
 
-	Label smi;
-
-	JumpIfSmi(reg, &smi, Label::kNear);
-	mov (reg, Operand(reg, Foreign::kForeignAddressOffset - kHeapObjectTag));
-	bind(&smi);
+  void LoadPointer(Register reg) {
+	Label end;
+	JumpIfSmi(reg, &end, Label::kNear);
+	mov (reg, Operand(reg, HeapNumber::kValueOffset - kHeapObjectTag));
+	bind(&end);
   }
 
-  //this method is not complete (can't store a non-smi where it was a smi)
-  void WrapPointer(Register reg, Register val, Register scratch) {
-	Label notsmi, end;
+  //tip: use eax as reg as it is trashed anyway
+  void StorePointer(Register reg, Register val, Register scratch1, Register scrantch2) {
+	  Label notsmi, end, assign;
 
-	//first internal field for a JSOBject
-	mov (scratch, Operand(reg, JSObject::kHeaderSize - kHeapObjectTag));
+	  JumpIfNotSmi(val, &notsmi, Label::kNear);
+	  //easy case: value is a SMI, I dont care about reg (yay for GCs!)
+	  mov (reg, val);
+	  jmp(&end);
 
-	JumpIfNotSmi(scratch, &notsmi, Label::kNear);
-	mov (Operand(reg, JSObject::kHeaderSize - kHeapObjectTag), val);
-	jmp(&end);
-	bind(&notsmi);
-	mov (Operand(scratch, Foreign::kForeignAddressOffset - kHeapObjectTag), val);
-	bind(&end);
+	  bind(&notsmi);
+	  JumpIfNotSmi(reg, &assign, Label::kNear);
+	  //value is not a SMI, but reg is, we need to create a container
+	  AllocatePointerWrapper(reg, scratch1, scrantch2);
+
+	  bind(&assign);
+	  //value is not a SMI and reg isn't either
+	  mov (Operand(reg, HeapNumber::kValueOffset - kHeapObjectTag), val);
+
+	  bind(&end);
+  }
+
+  //create a wrapped pointer on result
+  //tip: use eax as result as it is trashed anyway
+  void AllocatePointerWrapper(Register result, Register scratch1, Register scratch2) {
+	  Label slow_alloc;
+	  Label allocated;
+
+	  AllocateHeapNumber(result, scratch1, scratch2, &slow_alloc);
+	  jmp(&allocated);
+	  bind(&slow_alloc);
+	  CallRuntime(Runtime::kNumberAlloc, 0);
+	  if (!result.is(eax))
+		mov (result, eax);
+	  bind(&allocated);
   }
 
   //create a JSString from a C++ string
@@ -595,6 +645,22 @@ class MacroAssembler: public Assembler {
 	bind (&bailout);
 	mov  (result, isolate()->factory()->undefined_value());
 	bind (&done);
+  }
+
+  //return ptr on eax
+  void MallocWrapper(Register size) {
+	  push(size);
+	  mov (eax, Immediate(reinterpret_cast<uintptr_t>(malloc)));
+	  call(eax);
+
+  }
+
+  //scratch can be = to ptr
+  void FreeWrapper(Register ptr, Register scratch) {
+	  push(ptr);
+	  mov (scratch, Immediate(reinterpret_cast<uintptr_t>(free)));
+	  call(scratch);
+
   }
 
   void LoadInstanceDescriptors(Register map, Register descriptors);

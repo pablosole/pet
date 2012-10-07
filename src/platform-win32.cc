@@ -771,6 +771,9 @@ int OS::SNPrintF(Vector<char> str, const char* format, ...) {
 
 
 int OS::VSNPrintF(Vector<char> str, const char* format, va_list args) {
+  if (str.length() == 0)
+	return 0;
+
   int n = _vsnprintf_s(str.start(), str.length(), _TRUNCATE, format, args);
   // Make sure to zero-terminate the string if the output was
   // truncated or if there was an error.

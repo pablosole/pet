@@ -976,6 +976,8 @@ class Assembler : public AssemblerBase {
   void cpuid();
 
   // SSE2 instructions
+  void orpd(XMMRegister dst, XMMRegister src);
+
   void cvttss2si(Register dst, const Operand& src);
   void cvttsd2si(Register dst, const Operand& src);
 

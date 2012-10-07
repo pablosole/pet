@@ -1,16 +1,14 @@
 #ifdef INLINED_IMPL
 #define FUN(NAME) void FullCodeGenerator::Emit##NAME(CallRuntime* expr)
 
+//Helper functions
 FUN(ReturnContext)
 {
 	ZoneList<Expression*>* args = expr->arguments();
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax);
-
-	__ push(ecx);
-	__ push(edx);
+	__ LoadPointer(eax);
 
 	//newstate
 	__ mov(Operand(eax, kPointerSize * 6), ebx);
@@ -39,9 +37,6 @@ FUN(ReturnContext)
 	__ mov(esp, Operand(eax, kPointerSize * 4));
 
 	__ ret(4);
-
-	__ pop(edx);
-	__ pop(ecx);
 }
 
 //ptr, size (0 means strlen, size is in two-bytes chars)
@@ -54,7 +49,7 @@ FUN(ReadTwoByteString)
 	__ ReadInteger(eax);
 	__ mov(ecx, eax);  //size
 	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax); //ptr
+	__ LoadPointer(eax); //ptr
 	__ mov(esi, eax);
 
 	Label bailout;
@@ -102,7 +97,7 @@ FUN(ReadAsciiString)
 	__ ReadInteger(eax);
 	__ mov(ecx, eax);  //size
 	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax); //ptr
+	__ LoadPointer(eax); //ptr
 	__ mov(esi, eax);
 
 	Label bailout;
@@ -145,7 +140,7 @@ FUN(ReadDouble)
 	Label allocated;
 
 	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax);
+	__ LoadPointer(eax);
 	Operand self(eax, 0, RelocInfo::NONE);
 	__ movdbl(xmm0, self);
 
@@ -165,10 +160,10 @@ FUN(WriteDouble)
 	ZoneList<Expression*>* args = expr->arguments();
 	ASSERT(args->length == 2);
 
+	VisitForAccumulatorValue(args->at(1));
+	__ mov(edx, eax);
 	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax);
-	VisitForStackValue(args->at(1));
-	__ pop(edx);
+	__ LoadPointer(eax);
 
 	Label smi, end;
 
@@ -191,11 +186,11 @@ FUN(ReadByte)
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax);
+	__ LoadPointer(eax);
 	Operand self(eax, 0, RelocInfo::NONE);
-	__ movzx_b (ecx, self);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ movzx_b (eax, self);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(WriteByte)
@@ -203,11 +198,11 @@ FUN(WriteByte)
 	ZoneList<Expression*>* args = expr->arguments();
 	ASSERT(args->length == 2);
 
-	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax);
-	VisitForStackValue(args->at(1));
-	__ pop(edx);
+	VisitForAccumulatorValue(args->at(1));
+	__ mov(edx, eax);
 	__ ReadInteger(edx);
+	VisitForAccumulatorValue(args->at(0));
+	__ LoadPointer(eax);
 	Operand self(eax, 0, RelocInfo::NONE);
 	__ mov_b (self, edx);
 }
@@ -218,11 +213,11 @@ FUN(ReadWord)
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax);
+	__ LoadPointer(eax);
 	Operand self(eax, 0, RelocInfo::NONE);
-	__ movzx_w (ecx, self);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ movzx_w (eax, self);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(WriteWord)
@@ -230,66 +225,66 @@ FUN(WriteWord)
 	ZoneList<Expression*>* args = expr->arguments();
 	ASSERT(args->length == 2);
 
-	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax);
-	VisitForStackValue(args->at(1));
-	__ pop(edx);
+	VisitForAccumulatorValue(args->at(1));
+	__ mov(edx, eax);
 	__ ReadInteger(edx);
+	VisitForAccumulatorValue(args->at(0));
+	__ LoadPointer(eax);
 	Operand self(eax, 0, RelocInfo::NONE);
 	__ mov_w (self, edx);
 }
 
-FUN(ReadPointer)
+FUN(ReadDword)
 {
 	ZoneList<Expression*>* args = expr->arguments();
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax);
+	__ LoadPointer(eax);
 	Operand self(eax, 0, RelocInfo::NONE);
 	__ mov (ecx, self);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ CreateInteger(ecx, eax, edi, ebx);
+	context()->Plug(eax);
 }
 
-FUN(WritePointer)
+FUN(WriteDword)
 {
 	ZoneList<Expression*>* args = expr->arguments();
 	ASSERT(args->length == 2);
 
-	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax);
-	VisitForStackValue(args->at(1));
-	__ pop(edx);
+	VisitForAccumulatorValue(args->at(1));
+	__ mov(edx, eax);
 	__ ReadInteger(edx);
+	VisitForAccumulatorValue(args->at(0));
+	__ LoadPointer(eax);
 	Operand self(eax, 0, RelocInfo::NONE);
 	__ mov (self, edx);
 }
 
-FUN(UnwrapPointer)
+FUN(LoadPointer)
 {
 	ZoneList<Expression*>* args = expr->arguments();
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ UnwrapPointer(eax);
+	__ LoadPointer(eax);
 
 	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ CreateInteger(ecx, eax, edi, ebx);
+	context()->Plug(eax);
 }
 
-//arg0: ExternalPointer obj, arg1: pointer addr
-FUN(WrapPointer)
+//arg0: HeapNumber obj/SMI, arg1: pointer addr
+FUN(StorePointer)
 {
 	ZoneList<Expression*>* args = expr->arguments();
 	ASSERT(args->length == 2);
 
-	VisitForAccumulatorValue(args->at(0));
-	VisitForStackValue(args->at(1));
-	__ pop(edx);
+	VisitForAccumulatorValue(args->at(1));
+	__ mov(edx, eax);
 	__ ReadInteger(edx);
-	__ WrapPointer(eax, edx, ecx);
+	VisitForAccumulatorValue(args->at(0));
+	__ StorePointer(eax, edx, ecx, edi);
 }
 
 //arg0: c++ string address
@@ -299,7 +294,7 @@ FUN(JSStringFromCString)
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax);
+	__ LoadPointer(eax);
 	__ mov(edi, eax);
 
 	__ AllocateStringFromCString(eax, edi, esi, ecx, edx);
@@ -307,14 +302,15 @@ FUN(JSStringFromCString)
 	context()->Plug(eax);
 }
 
+
+// Pin functions
 FUN(PIN_GetPid)
 {
 	const int argument_count = 0;
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ CallCFunction(ExternalReference::PIN_GetPid_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(PIN_GetTid)
@@ -322,9 +318,8 @@ FUN(PIN_GetTid)
 	const int argument_count = 0;
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ CallCFunction(ExternalReference::PIN_GetTid_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(PIN_ThreadId)
@@ -332,9 +327,8 @@ FUN(PIN_ThreadId)
 	const int argument_count = 0;
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ CallCFunction(ExternalReference::PIN_ThreadId_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(PIN_ThreadUid)
@@ -342,9 +336,10 @@ FUN(PIN_ThreadUid)
 	const int argument_count = 0;
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ CallCFunction(ExternalReference::PIN_ThreadUid_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+
+	__ Int64ToFP(eax, edx, xmm0, xmm1);
+	__ CreateInteger(xmm0, eax, edi, ebx);
+	context()->Plug(eax);
 }
 
 FUN(PIN_IsProcessExiting)
@@ -429,7 +424,7 @@ FUN(PIN_SemaphoreInit)
 	Label *fall_through = NULL;
 
 	VisitForAccumulatorValue(args->at(0));
-	__ UnwrapPointer(eax);
+	__ LoadPointer(eax);
 
 	const int argument_count = 1;
 
@@ -450,7 +445,7 @@ FUN(PIN_SemaphoreFini)
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ UnwrapPointer(eax);
+	__ LoadPointer(eax);
 
 	const int argument_count = 1;
 
@@ -470,7 +465,7 @@ FUN(PIN_SemaphoreIsSet)
 	Label *fall_through = NULL;
 
 	VisitForAccumulatorValue(args->at(0));
-	__ UnwrapPointer(eax);
+	__ LoadPointer(eax);
 
 	const int argument_count = 1;
 
@@ -492,7 +487,7 @@ FUN(PIN_SemaphoreSet)
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ UnwrapPointer(eax);
+	__ LoadPointer(eax);
 
 	const int argument_count = 1;
 
@@ -507,7 +502,7 @@ FUN(PIN_SemaphoreWait)
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ UnwrapPointer(eax);
+	__ LoadPointer(eax);
 
 	const int argument_count = 1;
 
@@ -526,10 +521,10 @@ FUN(PIN_SemaphoreTimedWait)
 	Label *if_false = NULL;
 	Label *fall_through = NULL;
 
-	VisitForStackValue(args->at(0));
+	VisitForAccumulatorValue(args->at(0));
+	__ mov(edx,eax);
+	__ LoadPointer(edx);
 	VisitForAccumulatorValue(args->at(1));
-	__ pop(edx);
-	__ UnwrapPointer(edx);
 	__ ReadInteger(eax);
 
 	const int argument_count = 2;
@@ -553,7 +548,7 @@ FUN(PIN_SemaphoreClear)
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ UnwrapPointer(eax);
+	__ LoadPointer(eax);
 
 	const int argument_count = 1;
 
@@ -567,9 +562,8 @@ FUN(IMG_Invalid)
 	const int argument_count = 0;
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ CallCFunction(ExternalReference::IMG_Invalid_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(APP_ImgHead)
@@ -577,9 +571,8 @@ FUN(APP_ImgHead)
 	const int argument_count = 0;
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ CallCFunction(ExternalReference::APP_ImgHead_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(APP_ImgTail)
@@ -587,9 +580,8 @@ FUN(APP_ImgTail)
 	const int argument_count = 0;
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ CallCFunction(ExternalReference::APP_ImgTail_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(IMG_Next)
@@ -605,9 +597,8 @@ FUN(IMG_Next)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::IMG_Next_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(IMG_Prev)
@@ -623,9 +614,8 @@ FUN(IMG_Prev)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::IMG_Prev_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(IMG_Name)
@@ -641,9 +631,9 @@ FUN(IMG_Name)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, 0), eax);
 	__ CallCFunction(ExternalReference::IMG_Name_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ mov (edx, eax);
+	__ StorePointer(eax, edx, ecx, ebx);
+	context()->Plug(eax);
 }
 
 FUN(IMG_Entry)
@@ -659,9 +649,9 @@ FUN(IMG_Entry)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, 0), eax);
 	__ CallCFunction(ExternalReference::IMG_Entry_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ mov (edx, eax);
+	__ StorePointer(eax, edx, ecx, ebx);
+	context()->Plug(eax);
 }
 
 FUN(IMG_LoadOffset)
@@ -677,9 +667,9 @@ FUN(IMG_LoadOffset)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, 0), eax);
 	__ CallCFunction(ExternalReference::IMG_LoadOffset_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ mov (edx, eax);
+	__ StorePointer(eax, edx, ecx, ebx);
+	context()->Plug(eax);
 }
 
 FUN(IMG_FindByAddress)
@@ -688,16 +678,15 @@ FUN(IMG_FindByAddress)
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax);
+	__ LoadPointer(eax);
 
 	const int argument_count = 1;
 
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::IMG_FindByAddress_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(IMG_FindImgById)
@@ -713,9 +702,8 @@ FUN(IMG_FindImgById)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::IMG_FindImgById_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(IMG_Open)
@@ -724,16 +712,15 @@ FUN(IMG_Open)
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ UnwrapPointer(eax);
+	__ LoadPointer(eax);
 
 	const int argument_count = 1;
 
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::IMG_Open_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(IMG_Close)
@@ -756,9 +743,8 @@ FUN(SEC_Invalid)
 	const int argument_count = 0;
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ CallCFunction(ExternalReference::SEC_Invalid_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(SYM_Invalid)
@@ -766,9 +752,8 @@ FUN(SYM_Invalid)
 	const int argument_count = 0;
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ CallCFunction(ExternalReference::SYM_Invalid_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(IMG_SecHead)
@@ -784,9 +769,8 @@ FUN(IMG_SecHead)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::IMG_SecHead_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(IMG_SecTail)
@@ -802,9 +786,8 @@ FUN(IMG_SecTail)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::IMG_SecTail_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(SEC_Next)
@@ -820,9 +803,8 @@ FUN(SEC_Next)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::SEC_Next_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(SEC_Prev)
@@ -838,9 +820,8 @@ FUN(SEC_Prev)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::SEC_Prev_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(SEC_Name)
@@ -856,9 +837,9 @@ FUN(SEC_Name)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, 0), eax);
 	__ CallCFunction(ExternalReference::SEC_Name_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ mov (edx, eax);
+	__ StorePointer(eax, edx, ecx, ebx);
+	context()->Plug(eax);
 }
 
 FUN(IMG_RegsymHead)
@@ -874,9 +855,8 @@ FUN(IMG_RegsymHead)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::IMG_RegsymHead_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(SYM_Next)
@@ -892,9 +872,8 @@ FUN(SYM_Next)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::SYM_Next_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(SYM_Prev)
@@ -910,9 +889,8 @@ FUN(SYM_Prev)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::SYM_Prev_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(SYM_Name)
@@ -928,9 +906,9 @@ FUN(SYM_Name)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, 0), eax);
 	__ CallCFunction(ExternalReference::SYM_Name_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ mov (edx, eax);
+	__ StorePointer(eax, edx, ecx, ebx);
+	context()->Plug(eax);
 }
 
 FUN(RTN_Invalid)
@@ -938,9 +916,8 @@ FUN(RTN_Invalid)
 	const int argument_count = 0;
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ CallCFunction(ExternalReference::RTN_Invalid_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(SEC_RtnHead)
@@ -956,9 +933,8 @@ FUN(SEC_RtnHead)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::SEC_RtnHead_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(SEC_RtnTail)
@@ -974,9 +950,8 @@ FUN(SEC_RtnTail)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::SEC_RtnTail_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(RTN_Next)
@@ -992,9 +967,8 @@ FUN(RTN_Next)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::RTN_Next_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(RTN_Prev)
@@ -1010,9 +984,8 @@ FUN(RTN_Prev)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::RTN_Prev_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(RTN_Name)
@@ -1028,9 +1001,9 @@ FUN(RTN_Name)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, 0), eax);
 	__ CallCFunction(ExternalReference::RTN_Name_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ mov (edx, eax);
+	__ StorePointer(eax, edx, ecx, ebx);
+	context()->Plug(eax);
 }
 
 FUN(INS_Invalid)
@@ -1038,9 +1011,8 @@ FUN(INS_Invalid)
 	const int argument_count = 0;
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ CallCFunction(ExternalReference::INS_Invalid_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(RTN_InsHead)
@@ -1056,9 +1028,8 @@ FUN(RTN_InsHead)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::RTN_InsHead_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(RTN_InsHeadOnly)
@@ -1074,9 +1045,8 @@ FUN(RTN_InsHeadOnly)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::RTN_InsHeadOnly_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(RTN_InsTail)
@@ -1092,9 +1062,8 @@ FUN(RTN_InsTail)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::RTN_InsTail_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(INS_Next)
@@ -1110,9 +1079,8 @@ FUN(INS_Next)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::INS_Next_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(INS_Prev)
@@ -1128,9 +1096,8 @@ FUN(INS_Prev)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::INS_Prev_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(INS_Disassemble)
@@ -1142,7 +1109,7 @@ FUN(INS_Disassemble)
 	VisitForStackValue(args->at(1));        //wrapped empty string buffer
 	__ ReadInteger(eax);
 	__ pop(edx);
-	__ UnwrapPointer(edx);
+	__ LoadPointer(edx);
 
 	const int argument_count = 2;
 
@@ -1187,11 +1154,11 @@ FUN(RTN_FindNameByAddress)
 	ZoneList<Expression*>* args = expr->arguments();
 	ASSERT(args->length == 2);
 
+	VisitForAccumulatorValue(args->at(1));        //wrapped empty string buffer
+	__ mov(edx, eax);
+	__ LoadPointer(edx);
 	VisitForAccumulatorValue(args->at(0));
-	VisitForStackValue(args->at(1));        //wrapped empty string buffer
-	__ ReadInteger(eax);
-	__ pop(edx);
-	__ UnwrapPointer(edx);
+	__ LoadPointer(eax);
 
 	const int argument_count = 2;
 
@@ -1207,16 +1174,15 @@ FUN(RTN_FindByAddress)
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax);
+	__ LoadPointer(eax);
 
 	const int argument_count = 1;
 
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, 0), eax);
 	__ CallCFunction(ExternalReference::RTN_FindByAddress_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(INS_Address)
@@ -1232,9 +1198,9 @@ FUN(INS_Address)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, 0), eax);
 	__ CallCFunction(ExternalReference::INS_Address_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ mov (edx, eax);
+	__ StorePointer(eax, edx, ecx, ebx);
+	context()->Plug(eax);
 }
 
 FUN(INS_Size)
@@ -1250,9 +1216,8 @@ FUN(INS_Size)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, 0), eax);
 	__ CallCFunction(ExternalReference::INS_Size_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 //[addr, name, output]
@@ -1266,7 +1231,7 @@ FUN(RTN_CreateAt)
 	VisitForStackValue(args->at(1));
 	__ ReadInteger(eax);
 	__ pop(edx);
-	__ UnwrapPointer(edx);
+	__ LoadPointer(edx);
 
 	const int argument_count = 2;
 
@@ -1275,8 +1240,8 @@ FUN(RTN_CreateAt)
 	__ mov (Operand(esp, kPointerSize * 1), edx);
 	__ CallCFunction(ExternalReference::RTN_CreateAt_function(isolate()), argument_count);
 	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ CreateInteger(ecx, eax, edi, ebx);
+	context()->Plug(eax);
 }
 
 FUN(PIN_SaveContext)
@@ -1284,11 +1249,11 @@ FUN(PIN_SaveContext)
 	ZoneList<Expression*>* args = expr->arguments();
 	ASSERT(args->length == 2);
 
+	VisitForAccumulatorValue(args->at(1));
+	__ mov(edx, eax);
+	__ LoadPointer(edx);
 	VisitForAccumulatorValue(args->at(0));
-	VisitForStackValue(args->at(1));
-	__ UnwrapPointer(eax);
-	__ pop(edx);
-	__ UnwrapPointer(edx);
+	__ LoadPointer(eax);
 
 	const int argument_count = 2;
 
@@ -1308,11 +1273,11 @@ FUN(PIN_ContextContainsState)
 	Label *if_false = NULL;
 	Label *fall_through = NULL;
 
-	VisitForAccumulatorValue(args->at(0));
-	VisitForStackValue(args->at(1));
-	__ UnwrapPointer(eax);
-	__ pop(edx);
+	VisitForAccumulatorValue(args->at(1));
+	__ mov(edx,eax);
 	__ ReadInteger(edx);
+	VisitForAccumulatorValue(args->at(0));
+	__ LoadPointer(eax);
 
 	const int argument_count = 2;
 
@@ -1333,11 +1298,11 @@ FUN(PIN_GetContextReg)
 	ZoneList<Expression*>* args = expr->arguments();
 	ASSERT(args->length == 2);
 
-	VisitForAccumulatorValue(args->at(0));
-	VisitForStackValue(args->at(1));
-	__ UnwrapPointer(eax);
-	__ pop(edx);
+	VisitForAccumulatorValue(args->at(1));
+	__ mov(edx, eax);
 	__ ReadInteger(edx);  //REG is an enum
+	VisitForAccumulatorValue(args->at(0));
+	__ LoadPointer(eax);
 
 	const int argument_count = 2;
 
@@ -1345,9 +1310,9 @@ FUN(PIN_GetContextReg)
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ mov (Operand(esp, kPointerSize * 1), edx);
 	__ CallCFunction(ExternalReference::PIN_GetContextReg_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ mov (edx, eax);
+	__ StorePointer(eax, edx, ecx, ebx);
+	context()->Plug(eax);
 }
 
 FUN(PIN_SetContextReg)
@@ -1355,14 +1320,14 @@ FUN(PIN_SetContextReg)
 	ZoneList<Expression*>* args = expr->arguments();
 	ASSERT(args->length == 3);
 
-	VisitForAccumulatorValue(args->at(0));
-	VisitForStackValue(args->at(1));
-	VisitForStackValue(args->at(2));
-	__ UnwrapPointer(eax);
-	__ pop(ecx);  //arg2
+	VisitForAccumulatorValue(args->at(2));
+	__ mov(ecx,eax);  //arg2
 	__ ReadInteger(ecx);
-	__ pop(edx);  //arg1
+	VisitForAccumulatorValue(args->at(1));
+	__ mov(edx,eax);  //arg1
 	__ ReadInteger(edx);
+	VisitForAccumulatorValue(args->at(0));
+	__ LoadPointer(eax);
 
 	const int argument_count = 3;
 
@@ -1378,9 +1343,8 @@ FUN(PIN_ClaimToolRegister)
 	const int argument_count = 0;
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ CallCFunction(ExternalReference::PIN_ClaimToolRegister_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(REG_FullRegName)
@@ -1396,9 +1360,9 @@ FUN(REG_FullRegName)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, 0), eax);
 	__ CallCFunction(ExternalReference::REG_FullRegName_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ mov (edx, eax);
+	__ StorePointer(eax, edx, ecx, ebx);
+	context()->Plug(eax);
 }
 
 FUN(REG_StringShort)
@@ -1406,11 +1370,11 @@ FUN(REG_StringShort)
 	ZoneList<Expression*>* args = expr->arguments();
 	ASSERT(args->length == 2);
 
+	VisitForAccumulatorValue(args->at(1));        //wrapped empty string buffer
+	__ mov(edx, eax);
+	__ LoadPointer(edx);
 	VisitForAccumulatorValue(args->at(0));
-	VisitForStackValue(args->at(1));        //wrapped empty string buffer
 	__ ReadInteger(eax);
-	__ pop(edx);
-	__ UnwrapPointer(edx);
 
 	const int argument_count = 2;
 
@@ -1426,16 +1390,15 @@ FUN(TRACE_Rtn)
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax);
+	__ LoadPointer(eax);
 
 	const int argument_count = 1;
 
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, 0), eax);
 	__ CallCFunction(ExternalReference::TRACE_Rtn_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(TRACE_Address)
@@ -1444,16 +1407,16 @@ FUN(TRACE_Address)
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax);
+	__ LoadPointer(eax);
 
 	const int argument_count = 1;
 
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, 0), eax);
 	__ CallCFunction(ExternalReference::TRACE_Address_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ mov (edx, eax);
+	__ StorePointer(eax, edx, ecx, ebx);
+	context()->Plug(eax);
 }
 
 FUN(TRACE_Size)
@@ -1462,16 +1425,15 @@ FUN(TRACE_Size)
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax);
+	__ LoadPointer(eax);
 
 	const int argument_count = 1;
 
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, 0), eax);
 	__ CallCFunction(ExternalReference::TRACE_Size_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(PIN_RemoveInstrumentation)
@@ -1495,7 +1457,7 @@ FUN(PIN_WaitForThreadTermination)
 	__ mov(edx,eax);
 	__ ReadInteger(edx);
 	VisitForAccumulatorValue(args->at(0));
-	__ UnwrapPointer(eax);
+	__ LoadPointer(eax);
 
 	const int argument_count = 3;
 
@@ -1518,16 +1480,15 @@ FUN(TRACE_BblHead)
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax);
+	__ LoadPointer(eax);
 
 	const int argument_count = 1;
 
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::TRACE_BblHead_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(TRACE_BblTail)
@@ -1536,16 +1497,15 @@ FUN(TRACE_BblTail)
 	ASSERT(args->length == 1);
 
 	VisitForAccumulatorValue(args->at(0));
-	__ ReadInteger(eax);
+	__ LoadPointer(eax);
 
 	const int argument_count = 1;
 
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::TRACE_BblTail_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(BBL_Next)
@@ -1561,9 +1521,8 @@ FUN(BBL_Next)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::BBL_Next_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(BBL_Prev)
@@ -1579,9 +1538,8 @@ FUN(BBL_Prev)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::BBL_Prev_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(BBL_Valid)
@@ -1623,9 +1581,8 @@ FUN(BBL_InsHead)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::BBL_InsHead_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(BBL_InsTail)
@@ -1641,9 +1598,8 @@ FUN(BBL_InsTail)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::BBL_InsTail_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 FUN(BBL_Address)
@@ -1659,9 +1615,9 @@ FUN(BBL_Address)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::BBL_Address_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ mov (edx, eax);
+	__ StorePointer(eax, edx, ecx, ebx);
+	context()->Plug(eax);
 }
 
 FUN(BBL_Size)
@@ -1677,9 +1633,8 @@ FUN(BBL_Size)
 	__ PrepareCallCFunction(argument_count, ebx);
 	__ mov (Operand(esp, kPointerSize * 0), eax);
 	__ CallCFunction(ExternalReference::BBL_Size_function(isolate()), argument_count);
-	__ mov(ecx, eax);
-	__ CreateInteger(ecx, edi, eax, ebx);
-	context()->Plug(edi);
+	__ SmiTag(eax);
+	context()->Plug(eax);
 }
 
 #undef FUN

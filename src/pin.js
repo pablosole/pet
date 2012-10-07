@@ -1801,7 +1801,9 @@ function AnalysisFunctionEnabledSetter(val) {
 
 var $afs = new $Object();
 global.AfSetup = function(buffer, require) {
-	var passbuffer_offset = 11 * 4;
+	var current_offset = 11 * 4;
+	var actions_array_offset = 12 * 4;
+	var action_size = 20;
 	var afs = $afs;
 	var arg0 = 0;
 	var arg1 = 0;

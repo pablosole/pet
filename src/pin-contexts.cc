@@ -1,59 +1,98 @@
 #include "pintool.h"
 
-bool PinContext::CreateJSContext()
+VOID ConstructJSProxy(PinContextSwitch *buffer, PinContext *pincontext)
+{
+	Isolate *isolate = Isolate::New();
+	Persistent<Context> context;
+
+	if (isolate)
+	{
+		//Enter and lock the new isolate
+		Isolate::Scope iscope(isolate);
+		Locker lock(isolate);
+		HandleScope hscope;
+
+		context = Context::New();
+
+		if (!context.IsEmpty()) {
+			Context::Scope cscope(context);
+
+			Local<ObjectTemplate> objt = ObjectTemplate::New();
+			objt->SetInternalFieldCount(1);
+			Local<Object> obj = objt->NewInstance();
+			context->Global()->SetHiddenValue(String::New("SorrowInstance"), obj);
+
+			SorrowContext *sorrowctx = new SorrowContext(0, NULL);
+
+			pincontext->SetIsolate(isolate);
+			pincontext->SetContext(context);
+			pincontext->SetSorrowContext(sorrowctx);
+
+			string source = "AfSetup(";
+			char buf[30] = {0};
+			sprintf(buf, "%u", (uint32_t)buffer);
+			source += buf;
+			source += ", require);";
+
+			sorrowctx->LoadScript(source.c_str(), source.size());
+
+			//we get here after a FINISH_CTX action is received
+			V8::TerminateExecution(isolate);
+			delete sorrowctx;
+		} else {
+			DEBUG("Failed to create Context for TID " << PIN_ThreadId());
+			KillPinTool();
+		}
+		//Scope and Locker are destroyed here.
+	} else {
+		DEBUG("Failed to create Isolate for TID " << PIN_ThreadId());
+		KillPinTool();
+	}
+
+	context.Dispose();
+	V8::ContextDisposedNotification();
+
+	ReturnContext(buffer);
+	//never reaches here
+}
+
+PinContext::PinContext(THREADID _tid) :
+ctxswitch((uintptr_t)&ConstructJSProxy, 1)
 {
 	DEBUG("Create JS Context for " << tid);
 
-	Lock();
+	tid = _tid;
+	context.Clear();
+	isolate = 0;
+	sorrowctx = 0;
+	afctorscalled = false;
 
-	ctxswitch = new PinContextSwitch((uintptr_t)&ConstructInsertCallProxy, 1);
-	ctxswitch->args[1] = (uintptr_t)this;
-	SetState(INITIALIZED_CONTEXT);
-
-	Unlock();
-
-	return true;
+	//args[0] is set automatically to point to the PinContextSwitch instance
+	ctxswitch.args[1] = (uintptr_t)this;
 }
 
-void PinContext::DestroyInsertCallProxy()
-{
-	{
-		Isolate::Scope iscope(isolate);
-		Unlocker unlock(isolate);
-		{
-			Locker lock(isolate);
-			DEBUG("Calling AF destructors for TID=" << GetTid() << " on TID=" << PIN_ThreadId());
-			PinContextSwitch *buffer = GetContextSwitchBuffer();
-			buffer->passbuffer[0] = PinContextSwitch::FINISH_CTX;
-			EnterContext(buffer);
-		}
-	}
-
-	isolate->Dispose();
-}
-
-void PinContext::DestroyJSContext()
-{
-	DEBUG("Destroy context for tid:" << tid);
-
-	Lock();
-	if (GetState() == DEAD_CONTEXT) {
-		Unlock();
-		return;
-	}
-
-	SetState(DEAD_CONTEXT);
+PinContext::~PinContext() {
+	DEBUG("Destroy JS Context for " << tid);
 
 	if (isolate != 0)
 	{
-		DestroyInsertCallProxy();
+		//Get ownership of the isolate to call the destructors
+		{
+			Isolate::Scope iscope(isolate);
+			Unlocker unlock(isolate);
+			{
+				Locker lock(isolate);
+				DEBUG("Calling AF destructors for TID=" << GetTid() << " on TID=" << PIN_ThreadId());
+				struct PinContextAction *action = ctxswitch.AllocateAction();
+				action->type = PinContextAction::FINISH_CTX;
+				EnterContext(&ctxswitch);
+			}
+		}
 
-		delete ctxswitch;
+		isolate->Dispose();
 	}
-
-	Unlock();
-	Notify();
 }
+
 
 VOID PinContext::ThreadInfoDestructor(VOID *v)
 {
@@ -62,12 +101,7 @@ VOID PinContext::ThreadInfoDestructor(VOID *v)
 	if (!PinContext::IsValid(context))
 		return;
 
-	DEBUG("Queued context kill for TID " << context->GetTid());
-	context->Lock();
-	context->SetState(PinContext::KILLING_CONTEXT);
-	context->Unlock();
-
-	context->DestroyJSContext();
+	ctxmgr->DestroyContext(context->GetTid());
 }
 
 void __declspec(naked) __stdcall ReturnContext(PinContextSwitch *buffer) {
@@ -115,4 +149,28 @@ void __declspec(naked) __stdcall EnterContext(PinContextSwitch *buffer) {
 
 		JMP [eax]PinContextSwitch.neweip
 	}
+}
+
+PinContextSwitch::PinContextSwitch(uintptr_t fptr, uint32_t num) {
+	memset(stack, 0, sizeof(stack));
+	memset(actions, 0, sizeof(actions));
+	current_action = 0;
+
+	//ESP points to the end of our stack
+	neweip = fptr;
+	num_args = num+1;
+	args = &stack[0xFFFF-num_args];
+	args[0] = (uintptr_t)this;
+	newstate[4] = (uintptr_t)&stack[0xFFFF-num_args-1];
+}
+
+struct PinContextAction *PinContextSwitch::AllocateAction() {
+	long action = WINDOWS::InterlockedIncrement(&current_action);
+
+	if (action == kMaxContextActions) {
+		DEBUG("No more space for PinContextActions available");
+		KillPinTool();
+	}
+
+	return &actions[action-1];
 }

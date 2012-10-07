@@ -2,122 +2,6 @@
 #include <iostream>
 #include <process.h>
 
-
-VOID ContextManager::Run(VOID *_ctx)
-{
-	ContextManager *ctx = static_cast<ContextManager *>(_ctx);
-
-	//just for extra safety
-	if (!ctx || !ctx->IsValid())
-		return;
-
-	DEBUG("ContextManager thread initiated");
-	ctx->Ready();
-
-	while (true)
-	{
-		ctx->Wait();
-
-		//check if we're about to die
-		if (!ctx->IsRunning())
-			break;
-
-		ctx->ProcessCallbacks();
-
-		ctx->ProcessChanges();
-	}
-
-	DEBUG("ContextManager thread exit");
-}
-
-
-void ContextManager::ProcessCallbacksHelper(VOID *v)
-{
-	ContextManager *ctx = static_cast<ContextManager *>(v);
-
-	ctx->LockCallbacks();
-	while (!ctx->callbacks.empty())
-	{
-		EnsureCallback *info = ctx->callbacks.back();
-		ctx->callbacks.pop_back();
-		PinContext *context = ctx->EnsurePinContext(info->tid, info->create);
-		context->WaitIfNotReady();
-
-		if (!PinContext::IsValid(context))
-		{
-			DEBUG("Couldn't ensure a valid context for callback on tid " << info->tid);
-		} else {
-			info->callback(context, info->data);
-		}
-	}
-	ctx->UnlockCallbacks();
-}
-
-
-void ContextManager::ProcessCallbacks()
-{
-	if (callbacks.empty() || CallbacksIsProcessing())
-		return;
-
-	PIN_SpawnInternalThread(ContextManager::ProcessCallbacksHelper, this, 0, NULL);
-}
-
-
-void ContextManager::ProcessChanges()
-{
-	ContextsMap::iterator it;
-
-	Lock();
-
-	it = contexts.begin();
-	while (it != contexts.end())
-	{
-		THREADID tid = it->first;
-		PinContext *context = it->second;
-		
-		switch (context->GetState())
-		{
-			case PinContext::DEAD_CONTEXT:
-			case PinContext::ERROR_CONTEXT:
-				//this is a thread that was killed or became erroneous in a previous round, erase it.
-				contexts.erase(it++);
-				delete context;
-				break;
-			default:
-				//unknown state, move to the next anyway
-				++it;
-		}
-	}
-
-	Unlock();
-}
-
-
-void ContextManager::KillAllContexts()
-{
-	ContextsMap::iterator it;
-
-	//Last chance to process contexts dieing
-	ProcessChanges();
-
-	Lock();
-
-	it = contexts.begin();
-	while (it != contexts.end())
-	{
-		THREADID tid = it->first;
-		PinContext *context = it->second;
-		
-		if (context->GetState() == PinContext::INITIALIZED_CONTEXT) {
-			context->DestroyJSContext();
-		}
-		contexts.erase(it++);
-		delete context;
-	}
-
-	Unlock();
-}
-
 //It's mandatory to check the result of this initialization using IsValid()
 //after construction.
 ContextManager::ContextManager() :
@@ -126,11 +10,8 @@ instrumentation_flags(0)
 {
 	SetPerformanceCounter();
 
-	if (!PIN_MutexInit(&lock) || 
-		!PIN_MutexInit(&lock_callbacks) || 
-		!PIN_RWMutexInit(&lock_functions) || 
-		!PIN_SemaphoreInit(&changed) || 
-		!PIN_SemaphoreInit(&ready))
+	if (!PIN_MutexInit(&lock) ||
+		!PIN_RWMutexInit(&lock_functions))
 	{
 		SetState(ERROR_MANAGER);
 		return;
@@ -187,10 +68,6 @@ instrumentation_flags(0)
 	default_isolate = Isolate::GetCurrent();
 
 	SetState(RUNNING_MANAGER);
-	tid = PIN_SpawnInternalThread(Run, this, 0, NULL);
-	
-	if (tid == INVALID_THREADID)
-		SetState(ERROR_MANAGER);
 }
 
 ContextManager::~ContextManager()
@@ -205,10 +82,7 @@ ContextManager::~ContextManager()
 		return;
 
 	PIN_MutexFini(&lock);
-	PIN_MutexFini(&lock_callbacks);
 	PIN_RWMutexFini(&lock_functions);
-	PIN_SemaphoreFini(&changed);
-	PIN_SemaphoreFini(&ready);
 	PIN_DeleteThreadDataKey(per_thread_context_key);
 
 	V8::TerminateExecution();
@@ -248,56 +122,47 @@ PinContext *ContextManager::CreateContext(THREADID tid)
 
 	PIN_SetThreadData(per_thread_context_key, context, tid);
 
-	if (context->GetState() == PinContext::NEW_CONTEXT)
-		context->CreateJSContext();
-
-	if (context->GetState() == PinContext::INITIALIZED_CONTEXT)
-		return context;
-	else
-		return INVALID_PIN_CONTEXT;
-}
-
-//This function is used to queue a callback to run whenever the Context Manager is ready to work.
-//The callback is executed from an internal thread and it receives a PinContext * and the VOID *v passed as their arguments.
-bool ContextManager::EnsurePinContextCallback(THREADID tid, ENSURE_CALLBACK_FUNC *callback, VOID *v, bool create)
-{
-	if (!IsRunning())
-		return false;
-
-	if (IsReady())
-	{
-		PinContext *context = EnsurePinContext(tid, create);
-		context->WaitIfNotReady();
-		callback(context, v);
-		return true;
-	}
-
-	EnsureCallback *info = new EnsureCallback();
-	info->callback = callback;
-	info->tid = tid;
-	info->create = create;
-	info->data = v;
-
-	LockCallbacks();
-	callbacks.push_front(info);
-	UnlockCallbacks();
-
-	Notify();
-	return true;
-}
-
-inline PinContext *ContextManager::EnsurePinContext(THREADID tid, bool create)
-{
-	PinContext *context = static_cast<PinContext *>(PIN_GetThreadData(per_thread_context_key, tid));
-
-	if (!PinContext::IsValid(context) && create) {
-		if (!IsReady())
-			return NO_MANAGER_CONTEXT;
-
-		context = CreateContext(tid);
-	}
-
 	return context;
+}
+
+bool ContextManager::DestroyContext(THREADID tid)
+{
+	ContextsMap::iterator it;
+	bool ret=false;
+
+	Lock();
+	it = contexts.find(tid);
+	if (it != contexts.end())
+	{
+		PinContext *ctx = it->second;
+		contexts.erase(it);
+		delete ctx;
+		ret=true;
+	}
+	Unlock();
+
+	return ret;
+}
+
+
+void ContextManager::KillAllContexts()
+{
+	ContextsMap::iterator it;
+
+	SetState(ContextManager::DEAD_MANAGER);
+
+	Lock();
+
+	it = contexts.begin();
+	while (it != contexts.end())
+	{
+		THREADID tid = it->first;
+		PinContext *context = it->second;
+		contexts.erase(it++);
+		delete context;
+	}
+
+	Unlock();
 }
 
 
@@ -353,18 +218,6 @@ AnalysisFunction *ContextManager::GetFunction(unsigned int funcId)
 	return af;
 }
 
-
-uint32_t AnalysisFunction::HashBody()
-{
-	hash = 0;
-	const char *s = body.c_str();
-
-	while (*s)
-		hash = hash * 101 + *s++;
-
-	return hash;
-}
-
 bool ContextManager::GetPerformanceCounterDiff(WINDOWS::LARGE_INTEGER *out)
 {
 	WINDOWS::LARGE_INTEGER tmp;
@@ -404,6 +257,8 @@ void ContextManager::InitializeSorrowContext(int argc, const char *argv[])
 
 	fun->Call(GetDefaultContext()->Global(), 4, argv_f);
 
+
+
 	funval = GetDefaultContext()->Global()->Get(String::New("fastDispatcher_0"));
 	if (!funval->IsFunction()) {
 		DEBUG("fastDispatcher_0 not found");
@@ -411,12 +266,16 @@ void ContextManager::InitializeSorrowContext(int argc, const char *argv[])
 	}
 	routine_function = Persistent<Function>::New(Handle<Function>::Cast(funval));
 
+
+
 	funval = GetDefaultContext()->Global()->Get(String::New("fastDispatcher_1"));
 	if (!funval->IsFunction()) {
 		DEBUG("fastDispatcher_1 not found");
 		KillPinTool();
 	}
 	trace_function = Persistent<Function>::New(Handle<Function>::Cast(funval));
+
+
 
 	funval = GetDefaultContext()->Global()->Get(String::New("fastDispatcher_2"));
 	if (!funval->IsFunction()) {
@@ -440,4 +299,15 @@ void ContextManager::InitializeSorrowContext(int argc, const char *argv[])
 
 	if (argc)
 		sorrrowctx->LoadMain();
+}
+
+uint32_t AnalysisFunction::HashBody()
+{
+	hash = 0;
+	const char *s = body.c_str();
+
+	while (*s)
+		hash = hash * 101 + *s++;
+
+	return hash;
 }

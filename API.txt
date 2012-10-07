@@ -1,0 +1,258 @@
+Pin main objects:
+current
+	*pid
+	*tid
+	*threadId
+	*threadUid
+	thread
+	instruction
+	basicblock
+	trace
+	af
+	event
+	context
+	jscontext
+	isAf()
+	isReplace()
+*process
+	pid
+	exiting
+	exit
+	forcedExit
+images
+	findByAddress() [DONT_ENUM]
+	findById() [DONT_ENUM]
+	open() [DONT_ENUM]
+	return an array of Image objects
+threads
+	return an array of Thread objects
+events
+	return an array of Event objects
+routines
+	findRoutineNameByAddress
+	findRoutineByAddress
+	createRoutine(address, name)
+control
+	isAttaching
+	callAppFunction(context, tid, callconv, fptr, arguments)
+	removeAllInstrumentation
+	detach
+	*yield
+	spawnThread(fun, args) (only from main isolate, create a new context over this isolate per thread)
+	*sleep
+
+Pin constructible objects:
+Image (can be constructed by providing a filename [use IMG_Open])
+	sections
+	symbols
+*	valid
+	entryPoint
+*	name
+	loadOffset
+	startAddress
+	lowAddress
+	highAddress
+	sizeMapped
+	type
+	mainExecutable
+	staticExecutable
+	id
+	findRoutineByName()
+*	previous
+*	next
+*	destroy()
+
+Section
+	image
+	valid
+	routines()
+	name
+	type
+	address
+	size
+	bytes
+	flags (Readable, Writeable, Executable)
+
+Routine
+	section
+	valid
+	name
+	symbol
+	address
+	id
+	range
+	size
+	instructions()
+	attach(point, AF)
+	replace(replace_js_fun, proto, arguments) (RTN_ReplaceSignature)
+
+Prototype
+	toString()
+	name
+	returnType
+	callingConvention
+	arguments
+
+Symbol
+	valid
+	name
+	value
+	address
+	isDynamic
+	isIFunc
+	index
+	undecorateName(style) (complete, nameonly)
+
+Thread
+	valid
+	tid
+	threadId
+	threadUid
+	isActionPending
+	exit
+	isApplicationThread
+	waitForTermination(timeout)
+
+ThreadData(destructor_fun)
+	destructor
+	set(threadId)
+	get(threadId)
+
+ChildProcess
+	pid
+	cmdline (GetCommandLine)
+	setPinCmdline (SetPinCommandLine)
+
+Event
+	type (StartThread, FiniThread, LoadImage, UnloadImage, FiniApp, Routine, Trace, Instruction, FollowChild, StartApp, Detach, Fetch, MemoryAddressTrans, ContextChange, SyscallEnter, SyscallExit)
+
+Instruction
+	attach(point, AF)
+	attachFillBuffer(point, FillBuffer)
+	valid
+	category (CATEGORY_StringShort)
+	isCategory
+	extension (EXTENSION_StringShort)
+	isExtension
+	opcode (OPCODE_StringShort)
+	isOpcode
+	routine
+	toString() (Dissasemble)
+	mnemonic
+	address
+	targetAddress
+	size
+	next
+	nextAddress
+	previous
+	operands (OperandCount)
+	memoryOperands (MemoryOperandCount)
+	readRegs (MaxNumRRegs, RegR)
+	writtenRegs (MaxNumWRegs, RegW)
+	flags (IsMemoryRead, IsMemoryWrite, HasFallThrough, IsLea, IsNop, Is*, IsAddedForFunctionReplacement)
+	is(type) (existence checking, faster than flags)
+	getFarPointer()
+	syscallStandard()
+	segPrefix
+	delete()
+	insertJump(point, addr|reg)
+	insertVersionCase(reg, case_value, version, [call_order])
+
+Operand
+	flags (IsMemory, IsReg, IsImmediate, IsImplicit, IsGsOrFsReg)
+	memory (baseReg, IndexReg, segmentReg, Scale, Offset)
+	reg
+	immediate
+	width
+	is(type)
+
+MemoryOperand
+	operand (INS_MemoryOperandIndexToOperandIndex)
+	size
+	rewrite(reg)
+	is(type)
+	flags (IsRead, IsWritten)
+
+Register (new Register() uses PIN_ClaimToolRegister)
+	valid
+	name
+	toString() (same as name)
+	fullName
+	size
+	type (segment, GP64, GP32, GP16, GP8, FP, PIN32, PIN64)
+	is(type)
+	transformXMMToYMM
+
+Syscall
+	arg(num) (return an accesor object that uses GetSyscallArgument and SetSyscallArgument)
+	number
+	return
+	errno
+
+Context
+	
+
+Trace
+	valid
+	assert()
+	attach(point, AF)
+	basicBlocks
+	isOriginal
+	address
+	size
+	routine
+	hasFallThrough
+	numInstructions
+	stubSize
+	version (TRACE_Version)
+
+BasicBlock
+	valid
+	instructions() (BBL_NumIns)
+	address
+	size
+	isOriginal
+	hasFallThrough
+	attach(point, AF)
+	setVersion() (BBL_SetTargetVersion)
+
+FillBuffer (The unsupported IARG_TYPEs are: IARG_CONTEXT, IARG_REG_REFERENCE, and IARG_REG_CONST_REFERENCE.)
+	valid (false after free())
+	callback
+	pages
+	arguments
+	clone
+	free
+	getBuffer(context)
+
+AnalysisFunction
+	arguments
+	callback  (callback might be a string, a JS function or an External obj, for C++ plugins that define AFs)
+	initCallback (same as callback)
+	enabled
+	exceptionLimit
+	argsFixed (bool)
+
+ArgumentsArray
+	order (CALL_ORDER)
+	returnRegister
+	arguments (ordered array. elements might be a string or an obj with key being the arg type and value being the arg value)
+
+Lock
+	lock
+	unlock
+
+Mutex
+	lock (bool try)
+	unlock
+
+RWMutex
+	readLock(bool try)
+	writeLock(bool try)
+	unlock
+
+* Semaphore
+	set
+	clear
+	isSet
+	wait(timeout)
